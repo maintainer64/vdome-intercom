@@ -3,7 +3,7 @@ services:
     image: ghcr.io/maintainer64/vdome-intercom:${IMAGE_TAG:-latest}
     build: .
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
+      - "${BIND_ADDR:-127.0.0.1}:${PORT:-8080}:8080"
     environment:
       VDOME_ORIGIN: ${VDOME_ORIGIN:-http://127.0.0.1:8080}
       VDOME_PROVIDER: ${VDOME_PROVIDER:-live}

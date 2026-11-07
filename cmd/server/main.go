@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"vdome/internal/app"
 	"vdome/internal/domain"
 	"vdome/internal/provider"
+	"vdome/internal/servercfg"
 	"vdome/internal/vault"
 )
 
@@ -22,6 +24,18 @@ func env(name, fallback string) string {
 	return fallback
 }
 func main() {
+	cfg, err := servercfg.Read(os.Getenv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := cfg.Probe(context.Background()); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	var p domain.Provider = provider.Unconfigured{}
 	mode := env("VDOME_PROVIDER", "live")
 	switch mode {
@@ -59,7 +73,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer m.Close()
-	h, err := app.Handler(m, env("VDOME_ORIGIN", "http://127.0.0.1:8080"), env("VDOME_WEB_DIR", "web/dist"))
+	h, err := app.Handler(m, cfg.Origin, env("VDOME_WEB_DIR", "web/dist"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,7 +93,7 @@ func main() {
 			}
 		}
 	}()
-	server := &http.Server{Addr: env("VDOME_ADDR", "127.0.0.1:8080"), Handler: h, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	server := &http.Server{Addr: cfg.Addr, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}, Handler: h, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -87,7 +101,14 @@ func main() {
 		_ = server.Shutdown(shutdown)
 	}()
 	log.Printf("VDome: %s; provider=%s", server.Addr, mode)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+	var serveErr error
+	if cfg.TLS() {
+		log.Print("HTTPS включён")
+		serveErr = server.ListenAndServeTLS(cfg.CertFile, cfg.KeyFile)
+	} else {
+		serveErr = server.ListenAndServe()
+	}
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		log.Fatal(serveErr)
 	}
 }

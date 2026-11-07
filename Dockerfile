@@ -56,10 +56,10 @@ COPY --from=web /src/web/dist ./web/dist
 COPY --from=ffmpeg /opt/ffmpeg/bin/ffmpeg /usr/local/bin/ffmpeg
 COPY --from=ffmpeg /src/COPYING.LGPLv* /usr/share/licenses/ffmpeg/
 COPY THIRD_PARTY.md /usr/share/licenses/ffmpeg/SOURCE.md
-ENV VDOME_ADDR=0.0.0.0:8080 VDOME_ORIGIN=http://127.0.0.1:8080 VDOME_PROVIDER=live
+ENV VDOME_ADDR=0.0.0.0:8080 VDOME_PROVIDER=live
 USER 10001:10001
 EXPOSE 8080
 VOLUME ["/app/data"]
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+    CMD ["vdome", "healthcheck"]
 ENTRYPOINT ["vdome"]
