@@ -45,8 +45,7 @@ jobs:
           cache-to: type=gha,scope=build,mode=max
       - name: Verify minimal FFmpeg and start isolated demo
         run: |
-          docker run --rm --entrypoint ffmpeg vdome-intercom:ci -version
-          docker run --rm --entrypoint sh vdome-intercom:ci -c '! command -v node && ! command -v go && ! command -v gcc && test "$(id -u)" = 10001'
+          sh scripts/container-smoke.sh vdome-intercom:ci
           docker run -d --name vdome-ci -p 127.0.0.1:8082:8080 --read-only --tmpfs /tmp:rw,size=128m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true -e VDOME_PROVIDER=demo -e VDOME_MEMORY_ONLY=1 -e VDOME_ORIGIN=http://127.0.0.1:8082 vdome-intercom:ci
           curl --fail --silent --show-error --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8082/healthz
       - name: Browser tests against production image

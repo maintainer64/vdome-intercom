@@ -28,6 +28,7 @@ WORKDIR /src
 RUN curl -fL --connect-timeout 15 --max-time 90 --retry 3 "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz \
     && echo "${FFMPEG_SHA256}  ffmpeg.tar.gz" | sha256sum -c - \
     && tar -xzf ffmpeg.tar.gz --strip-components=1
+# musl defaults to a small thread stack; FFmpeg demux workers need more.
 RUN ./configure \
     --prefix=/opt/ffmpeg --disable-everything --disable-autodetect \
     --disable-doc --disable-debug --disable-x86asm --disable-ffplay --disable-ffprobe \
@@ -40,7 +41,7 @@ RUN ./configure \
     --enable-decoder=h264,hevc \
     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,aac_adtstoasc \
     --extra-cflags='-Os -ffunction-sections -fdata-sections' \
-    --extra-ldflags='-Wl,--gc-sections' \
+    --extra-ldflags='-Wl,--gc-sections,-z,stack-size=2097152' \
     && make -j"$(getconf _NPROCESSORS_ONLN)" \
     && make install
 
