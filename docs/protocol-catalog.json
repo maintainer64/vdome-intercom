@@ -1,0 +1,1626 @@
+{
+  "source": "VDome Android 3.0.4r, ru.mts.vdome.resident",
+  "status": "static extraction; not proof of server availability",
+  "coverage": "Retrofit HTTP annotations in resident modules; excludes runtime-built URLs, SDK services, media and push protocols",
+  "operations": [
+    {
+      "method": "POST",
+      "route": "/user-service/api/v2/auth/login",
+      "operation": "completeAuth",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/user-service/api/v2/auth/init",
+      "operation": "initAuth",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/user-service/api/v2/auth/logout",
+      "operation": "logout",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/user-service/api/v2/auth/refresh",
+      "operation": "refreshTokens",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/config",
+      "operation": "getAppVersion",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/AuthApiGateway.java"
+    },
+    {
+      "method": "GET",
+      "route": "/feature",
+      "operation": "getFeatureToggle",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/AuthApiGateway.java"
+    },
+    {
+      "method": "POST",
+      "route": "/key-service/master/key/v1/gen",
+      "operation": "getMasterKey",
+      "parameters": [
+        {
+          "location": "header",
+          "name": "consumerId"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApiGateway.java"
+    },
+    {
+      "method": "POST",
+      "route": "/user-service/api/v2/auth/logout",
+      "operation": "logout",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApiGateway.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/user-service/api/v2/auth/refresh",
+      "operation": "refreshAccessToken",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/AuthApiGateway.java"
+    },
+    {
+      "method": "GET",
+      "route": "/domofon/api/intercom/v1/cameras/{id}/archive",
+      "operation": "getArchive",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        },
+        {
+          "location": "query",
+          "name": "start"
+        },
+        {
+          "location": "query",
+          "name": "end"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/domofon/api/intercom/v1/cameras/{id}/archive/distribution",
+      "operation": "getArchiveDistribution",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event/{eventId}",
+      "operation": "getEventById",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event",
+      "operation": "getEventCamera",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "sort"
+        },
+        {
+          "location": "query",
+          "name": "camera_id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event",
+      "operation": "getEvents",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "from"
+        },
+        {
+          "location": "query",
+          "name": "to"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event",
+      "operation": "getEventsCamera",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "contextId"
+        },
+        {
+          "location": "query",
+          "name": "from"
+        },
+        {
+          "location": "query",
+          "name": "to"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event",
+      "operation": "getEventsFiltered",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "excludeAlias"
+        },
+        {
+          "location": "query",
+          "name": "contextIdRequired"
+        },
+        {
+          "location": "query",
+          "name": "excludeContextIdRequired"
+        },
+        {
+          "location": "query",
+          "name": "from"
+        },
+        {
+          "location": "query",
+          "name": "to"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/api/v1/event",
+      "operation": "getMissedEvents",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "from"
+        },
+        {
+          "location": "query",
+          "name": "to"
+        },
+        {
+          "location": "query",
+          "name": "payload.isMissed"
+        },
+        {
+          "location": "query",
+          "name": "contextIdRequired"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/EventsApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/issue/{id}/photos",
+      "operation": "uploadPhotoToBid",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/FileRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/issueMessage/{id}/files",
+      "operation": "uploadPhotoToBidMessage",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/FileRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/domofon/api/security/v1/users/{userId}/link",
+      "operation": "addIntercomUser",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "gw-intercom/apartment/v1/apartments/{apartmentId}/block/{userId}",
+      "operation": "blockCall",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "apartmentId"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/gw-intercom/token/v1/tokens/{modelId}",
+      "operation": "confirmSms",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "modelId"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "vdome-smart-facade/issues/api/v1",
+      "operation": "createBid",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "vdome-smart-facade/issues/api/v1/{id}/supplement",
+      "operation": "editBid",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "gw-intercom/apartment/v1/apartments/{id}",
+      "operation": "getApartment",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "gw-intercom/apartment/v1/apartments",
+      "operation": "getApartments",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "gw-intercom/billing/v2/users/{userId}/services",
+      "operation": "getBillings",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v1/cameras?limit=1000",
+      "operation": "getCameras",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/gw-intercom/company/v1/companies/{id}",
+      "operation": "getDescription",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v2/intercoms?limit=1000&category=barrier",
+      "operation": "getElevators",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/user-service/api/auth/websso/refresh",
+      "operation": "getIdToken",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v2/intercoms?limit=1000&category=intercom",
+      "operation": "getIntercoms",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v2/intercoms",
+      "operation": "getIntercomsTest",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/key-service/master/key/v1/gen",
+      "operation": "getMasterKey",
+      "parameters": [
+        {
+          "location": "header",
+          "name": "consumerId"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/meter-manager/metric/v1/devices",
+      "operation": "getNewCounters",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "from"
+        },
+        {
+          "location": "query",
+          "name": "to"
+        },
+        {
+          "location": "query",
+          "name": "sort"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/meter-manager/device/v1/flats",
+      "operation": "getNewMeters",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/payment-service/api/v2/payment/session",
+      "operation": "getPaySession",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/security/v1/users/self",
+      "operation": "getUser",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/domofon/api/security/v1/users",
+      "operation": "getUsers",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/user-service/v2/api/auth/logout",
+      "operation": "logout",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/intercoms/{intercomId}/lock",
+      "operation": "openDoor",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/intercoms/{intercomId}/lock/{lockNumber}",
+      "operation": "openDoorByNumber",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "lockNumber"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "domofon/api/security/v1/users/{userId}",
+      "operation": "registerFcmDeviceToken",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/gw-intercom/feedback/v1/messages/intercom/{id}",
+      "operation": "sendFeedBack",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/gw-intercom/token/v1/tokens",
+      "operation": "sendSms",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "vdome-smart-facade/issues/api/v1/{id}/photos",
+      "operation": "uploadPhotoToBid",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "vdome-smart-facade/issues/api/v1/messages/{id}/files",
+      "operation": "uploadPhotoToBidMessage",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "vdome-smart-facade/issues/api/v1/{id}/cancel",
+      "operation": "userBidCancel",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/issues/api/v1/categories/flats/{id}",
+      "operation": "userBidCategoryList",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/issues/api/v1/{id}/details",
+      "operation": "userBidInfo",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "vdome-smart-facade/issues/api/v1",
+      "operation": "userBidList",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "offset"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/IntercomRestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/mtr/meter/readings/{id}",
+      "operation": "counterRateValues",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/issue",
+      "operation": "createBid",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "DELETE",
+      "route": "/api/new/v1/realtyObjectCheck",
+      "operation": "deleteFlat",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "flatId"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/issue/{id}/supplement",
+      "operation": "editBid",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/company/elevator",
+      "operation": "elevator",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/chat/message",
+      "operation": "getChatMessages",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "query"
+        },
+        {
+          "location": "query",
+          "name": "offset"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/inv/invoice/{id}/details",
+      "operation": "getInvoiceDetails",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/inv/invoice/clientAccount",
+      "operation": "getInvoiceList",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "clientAccount"
+        },
+        {
+          "location": "query",
+          "name": "flatId"
+        },
+        {
+          "location": "query",
+          "name": "archive"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "metric/v1/devices",
+      "operation": "getNewMeters",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/news/{id}",
+      "operation": "getNewsInfo",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/news",
+      "operation": "getNewsList",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "houseId"
+        },
+        {
+          "location": "query",
+          "name": "query"
+        },
+        {
+          "location": "query",
+          "name": "offset"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/notification/settings",
+      "operation": "getNotificationSetting",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/inv/invoice/{id}/payLink",
+      "operation": "getPayLink",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/registration/flat/{id}/residents",
+      "operation": "getRegisterChild",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/mtr/meter/flat/{id}",
+      "operation": "meterList",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "PATCH",
+      "route": "/api/new/v1/inv/invoice/{id}/status/offline",
+      "operation": "payOffline",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/user/profile",
+      "operation": "personalInfo",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/chat/message/read",
+      "operation": "readChatMessages",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "realtyObjectById",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/registration/flat/{id}",
+      "operation": "registerChild",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v1/search/address",
+      "operation": "searchAddress",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "query"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/company/info",
+      "operation": "searchCompanyByAddress",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "house_fias_id"
+        },
+        {
+          "location": "query",
+          "name": "extended_street_fias_id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/company/info",
+      "operation": "searchCompanyByAddress",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "extended_street_fias_id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/user/flat/number",
+      "operation": "searchFlatByAddressAndCompany",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "house_fias_id"
+        },
+        {
+          "location": "query",
+          "name": "company_id"
+        },
+        {
+          "location": "query",
+          "name": "account_number"
+        },
+        {
+          "location": "query",
+          "name": "extended_street_fias_id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v2/user/flat/number",
+      "operation": "searchFlatByAddressAndCompany",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "company_id"
+        },
+        {
+          "location": "query",
+          "name": "account_number"
+        },
+        {
+          "location": "query",
+          "name": "extended_street_fias_id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/chat/message",
+      "operation": "sendChatMessage",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/api/new/v1/notification/token",
+      "operation": "sendCloudMessagingToken",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/new/v1/mtr/meter/readings",
+      "operation": "sendMeterValues",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/api/new/v1/notification/settings",
+      "operation": "setNotificationSetting",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "PATCH",
+      "route": "/api/v1/user/profile",
+      "operation": "updatePersonalInfo",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/v1/issue/{id}/cancel",
+      "operation": "userBidCancel",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "userBidCategoryList",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/issue/{id}",
+      "operation": "userBidInfo",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/issue",
+      "operation": "userBidList",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "offset"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/new/v3/user/flat",
+      "operation": "userFlatAdd",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/new/v2/user/flat/company/default",
+      "operation": "userFlatAddWithoutCompany",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/api/new/v2/user/flat/company/default",
+      "operation": "userFlatAddWithoutCompany",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v3/user/flat",
+      "operation": "userFlatList",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/backend/api/RestApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "domofon/api/intercom/v1/calls/{intercomId}/action/{action}",
+      "operation": "postAction",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "action"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/call/repository/CallRepository3.java"
+    },
+    {
+      "method": "PUT",
+      "route": "domofon/api/security/v1/users/{userId}",
+      "operation": "putSignalLevel",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/call/repository/CallRepository3.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/intercoms/{intercomId}/lock",
+      "operation": "unlock",
+      "parameters": [
+        {
+          "location": "header",
+          "name": "X-Call-Session-ID"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/call/repository/CallRepository3.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/agreement/api/v1",
+      "operation": "getAgreement",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/AgreementApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/passages/api/v1/flats/{id}",
+      "operation": "createPassage",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "DELETE",
+      "route": "/vdome-smart-facade/passages/api/v1/{passageId}",
+      "operation": "deletePassage",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "passageId"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/keys/api/v1/ble/generate/{id}",
+      "operation": "generateBleKey",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/accessPoints",
+      "operation": "getAccessPointsByFlat",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "flatId"
+        },
+        {
+          "location": "query",
+          "name": "category"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "sort"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/flats/{id}/available",
+      "operation": "getAvailableDevicesAliases",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/call-settings",
+      "operation": "getCallSettings",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/cameras",
+      "operation": "getCamerasByFlat",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "flatId"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "sort"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/estate/api/v1/companies/{id}",
+      "operation": "getCompanyInfo",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/favorites/{alias}",
+      "operation": "getFavorites",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/services/api/v1/residents/flats/{id}",
+      "operation": "getFlatServices",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/devices/api/v1/guests/{guestId}",
+      "operation": "getGuestSettings",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "guestId"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/publications/api/v1/flats/{id}",
+      "operation": "getNewsByFlat",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "sort"
+        },
+        {
+          "location": "query",
+          "name": "types"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/publications/api/v1/{id}",
+      "operation": "getNewsById",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/passages/api/v1",
+      "operation": "getPassages",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "flatId"
+        },
+        {
+          "location": "query",
+          "name": "sort"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        },
+        {
+          "location": "query",
+          "name": "status"
+        }
+      ],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/vdome-smart-facade/estate/api/v1/residents/flats",
+      "operation": "getResidentFlats",
+      "parameters": [],
+      "body": false,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/intercoms/{intercomId}/lock/{lockNumber}",
+      "operation": "openLock",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "lockNumber"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/favorites",
+      "operation": "saveFavorites",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/call-settings",
+      "operation": "updateCallSettings",
+      "parameters": [],
+      "body": true,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "POST",
+      "route": "/vdome-smart-facade/devices/api/v1/guests/{guestId}",
+      "operation": "updateGuestSettings",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "guestId"
+        }
+      ],
+      "body": true,
+      "evidence": "com/ub/smartresident/data/remote/api/DashboardApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "getAddress",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/access/request/form/interactor/GetUserInfo5.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/user/profile",
+      "operation": "getProfile",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/access/request/form/interactor/GetUserInfo5.java"
+    },
+    {
+      "method": "POST",
+      "route": "passage-service/api/v1/events",
+      "operation": "requestUserAccess",
+      "parameters": [],
+      "body": true,
+      "evidence": "ru/mts/vdome/resident/access/request/form/interactor/RequestAccess2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/new/v3/user/flat",
+      "operation": "getFlat",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/access/request/form/interactor/RequestAccess2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/user/profile",
+      "operation": "getProfile",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/access/request/form/interactor/RequestAccess2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "getDescription",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/intercom/contacts/interactor/GetHouseManagementDescription2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/gw-intercom/company/v1/companies/{id}",
+      "operation": "getDescription",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/intercom/contacts/interactor/GetIntercomManagementDescription2.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v1/cameras",
+      "operation": "getCameras",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/intercom/repo/mediator/repository/remote/RemoteIntercomApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/intercom/v2/intercoms",
+      "operation": "getIntercoms",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/intercom/repo/mediator/repository/remote/RemoteIntercomApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "domofon/api/security/v1/users/self",
+      "operation": "getUser",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/intercom/repo/mediator/repository/remote/RemoteIntercomApi.java"
+    },
+    {
+      "method": "GET",
+      "route": "marketplace-service/api/v1/resident/product/{id}",
+      "operation": "getItem",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/basket/repository/ItemRepository2.java"
+    },
+    {
+      "method": "GET",
+      "route": "marketplace-service/api/v1/resident/product/{id}",
+      "operation": "getItem",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/catalog/item/repository/ItemRepository4.java"
+    },
+    {
+      "method": "GET",
+      "route": "marketplace-service/api/v1/resident/katalog/{companyId}",
+      "operation": "getCatalog",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "parent"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/catalog/repository/CatalogRepository2.java"
+    },
+    {
+      "method": "GET",
+      "route": "marketplace-service/api/v1/resident/katalog/{companyId}",
+      "operation": "search",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "name"
+        },
+        {
+          "location": "query",
+          "name": "page"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/catalog/repository/SearchRepository2.java"
+    },
+    {
+      "method": "POST",
+      "route": "marketplace-service/api/v1/resident/order",
+      "operation": "createOrder",
+      "parameters": [],
+      "body": true,
+      "evidence": "ru/mts/vdome/resident/marketplace/checkout/repository/OrderRepository2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "getAddress",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/checkout/repository/UserInfoRepository3.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/user/profile",
+      "operation": "getProfile",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/checkout/repository/UserInfoRepository3.java"
+    },
+    {
+      "method": "GET",
+      "route": "marketplace-service/api/v1/resident/allitem/{id}",
+      "operation": "getOrder",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/order/repository/OrdersRepository2.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v2/realtyObject/{id}",
+      "operation": "getAddress",
+      "parameters": [
+        {
+          "location": "path",
+          "name": "id"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/order/repository/UserInfoRepository5.java"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/user/profile",
+      "operation": "getProfile",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/order/repository/UserInfoRepository5.java"
+    },
+    {
+      "method": "GET",
+      "route": "/marketplace-service/api/v1/resident/order",
+      "operation": "getOrders",
+      "parameters": [
+        {
+          "location": "query",
+          "name": "page"
+        }
+      ],
+      "body": false,
+      "evidence": "ru/mts/vdome/resident/marketplace/orders/repository/OrdersRepository4.java"
+    },
+    {
+      "method": "PUT",
+      "route": "/user-service/api/auth/websso/refresh",
+      "operation": "refreshSsoToken",
+      "parameters": [],
+      "body": false,
+      "evidence": "ru/mts/resident/auth/interactor/RefreshToken8.java"
+    }
+  ]
+}

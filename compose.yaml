@@ -1,0 +1,22 @@
+services:
+  app:
+    image: ghcr.io/maintainer64/vdome-intercom:${IMAGE_TAG:-latest}
+    build: .
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    environment:
+      VDOME_ORIGIN: ${VDOME_ORIGIN:-http://127.0.0.1:8080}
+      VDOME_PROVIDER: ${VDOME_PROVIDER:-live}
+      VDOME_MEMORY_ONLY: ${VDOME_MEMORY_ONLY:-0}
+    volumes:
+      - vdome-data:/app/data
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+volumes:
+  vdome-data:
