@@ -1,0 +1,19 @@
+services:
+  app:
+    environment:
+      VDOME_ORIGIN: ${VDOME_ORIGIN:-https://127.0.0.1:8080}
+      VDOME_TLS_CERT_FILE: /run/vdome-tls/cert.pem
+      VDOME_TLS_KEY_FILE: /run/vdome-tls/key.pem
+    volumes:
+      - type: bind
+        source: ${VDOME_TLS_CERT_FILE:?Укажите путь к сертификату на хосте}
+        target: /run/vdome-tls/cert.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VDOME_TLS_KEY_FILE:?Укажите путь к ключу на хосте}
+        target: /run/vdome-tls/key.pem
+        read_only: true
+        bind:
+          create_host_path: false

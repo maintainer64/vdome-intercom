@@ -46,6 +46,7 @@ jobs:
       - name: Verify minimal FFmpeg and start isolated demo
         run: |
           sh scripts/container-smoke.sh vdome-intercom:ci
+          sh scripts/tls-smoke.sh vdome-intercom:ci
           docker run -d --name vdome-ci -p 127.0.0.1:8082:8080 --read-only --tmpfs /tmp:rw,size=128m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true -e VDOME_PROVIDER=demo -e VDOME_MEMORY_ONLY=1 -e VDOME_ORIGIN=http://127.0.0.1:8082 vdome-intercom:ci
           curl --fail --silent --show-error --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8082/healthz
       - name: Browser tests against production image
@@ -69,28 +70,10 @@ jobs:
   publish-pr:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
     permissions:
       contents: read
       packages: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.0
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository }}:dev-${{ github.event.pull_request.number }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=build
-          cache-to: type=gha,scope=build,mode=max
+    uses: ./.github/workflows/image.yml
+    with:
+      source_ref: ${{ github.sha }}
+      tag: dev-${{ github.event.pull_request.number }}
