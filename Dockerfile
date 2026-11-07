@@ -38,7 +38,6 @@ RUN ./configure \
     --enable-protocol=file,pipe,tcp,udp,rtp,http,https,httpproxy,tls,crypto \
     --enable-demuxer=concat,rtsp,rtp,sdp,hls,mpegts,mov \
     --enable-muxer=hls,mpegts --enable-parser=h264,hevc,aac \
-    --enable-decoder=h264,hevc \
     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,aac_adtstoasc \
     --extra-cflags='-Os -ffunction-sections -fdata-sections' \
     --extra-ldflags='-Wl,--gc-sections,-z,stack-size=2097152' \

@@ -1,7 +1,8 @@
 # FFmpeg in the container
 
 The runtime includes a reduced FFmpeg 9.0.2 build for RTSP/HTTP to HLS remuxing.
-It contains no encoders and links OpenSSL dynamically. FFmpeg is distributed
+It contains no encoders or decoders: video is remuxed without transcoding.
+It links OpenSSL dynamically. FFmpeg is distributed
 under LGPL v3 or later; see `/usr/share/licenses/ffmpeg/COPYING.LGPLv3` in
 the image. This project has not modified the upstream FFmpeg source.
 
