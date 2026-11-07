@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 ARG ALPINE_VERSION=3.24
 
-FROM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.27-alpine AS server
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS server
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
