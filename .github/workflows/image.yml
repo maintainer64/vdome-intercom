@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
-      group: container-tag-publication-${{ github.repository }}
+      group: container-tag-publication-${{ github.repository }}-${{ inputs.tag }}
       cancel-in-progress: false
     permissions:
       contents: read
