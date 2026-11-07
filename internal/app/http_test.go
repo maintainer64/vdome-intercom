@@ -58,3 +58,46 @@ func TestLoginCookieAndSessionIsolation(t *testing.T) {
 		t.Fatal("login body contains token")
 	}
 }
+
+func TestLoopbackOriginAliasesKeepPortSchemeAndCSRFChecks(t *testing.T) {
+	m, _, _, _ := setup(t)
+	defer m.Close()
+	h, err := Handler(m, "http://127.0.0.1:8081", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		origin, site, header string
+		status               int
+	}{
+		{"http://localhost:8081", "same-origin", "1", 200},
+		{"http://127.0.0.1:8081", "same-origin", "1", 200},
+		{"http://[::1]:8081", "same-origin", "1", 200},
+		{"http://localhost:8080", "same-origin", "1", 403},
+		{"https://localhost:8081", "same-origin", "1", 403},
+		{"http://localhost.attacker.test:8081", "same-origin", "1", 403},
+		{"http://localhost:8081", "cross-site", "1", 403},
+		{"http://localhost:8081", "same-origin", "", 403},
+		{"null", "same-origin", "1", 403},
+		{"http://localhost:8081/extra", "same-origin", "1", 403},
+	} {
+		r := httptest.NewRequest("POST", "/api/auth/logout", nil)
+		r.Header.Set("Origin", tc.origin)
+		r.Header.Set("Sec-Fetch-Site", tc.site)
+		r.Header.Set("X-VDome-Request", tc.header)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Errorf("origin=%s site=%s: got %d want %d", tc.origin, tc.site, w.Code, tc.status)
+		}
+	}
+	public, _ := Handler(m, "https://intercom.example", t.TempDir())
+	r := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	r.Header.Set("Origin", "https://localhost")
+	r.Header.Set("X-VDome-Request", "1")
+	w := httptest.NewRecorder()
+	public.ServeHTTP(w, r)
+	if w.Code != 403 {
+		t.Fatal("local alias bypassed public origin")
+	}
+}

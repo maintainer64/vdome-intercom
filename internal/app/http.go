@@ -55,7 +55,7 @@ func Handler(m *Manager, origin, dist string) (http.Handler, error) {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; media-src 'self' blob:; worker-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			if r.Header.Get("X-VDome-Request") != "1" || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != h.origin) || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			if r.Header.Get("X-VDome-Request") != "1" || !originAllowed(r.Header.Get("Origin"), h.origin) || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 				writeJSON(w, 403, map[string]string{"error": "Недопустимый источник запроса"})
 				return
 			}
@@ -63,6 +63,35 @@ func Handler(m *Manager, origin, dist string) (http.Handler, error) {
 		mux.ServeHTTP(w, r)
 	}), nil
 }
+
+// Browsers treat localhost and loopback IPs as separate origins. Accept local
+// aliases only when the configured origin is local and scheme/port both match.
+// Public origins remain exact; Sec-Fetch-Site and the custom header still apply.
+func originAllowed(origin, configured string) bool {
+	if origin == "" || origin == configured {
+		return true
+	}
+	actual, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	expected, err := url.Parse(configured)
+	if err != nil || actual.Scheme != expected.Scheme || actual.User != nil || actual.Path != "" || actual.RawQuery != "" || actual.Fragment != "" {
+		return false
+	}
+	loopback := func(host string) bool { return host == "localhost" || host == "127.0.0.1" || host == "::1" }
+	port := func(u *url.URL) string {
+		if p := u.Port(); p != "" {
+			return p
+		}
+		if u.Scheme == "https" {
+			return "443"
+		}
+		return "80"
+	}
+	return loopback(actual.Hostname()) && loopback(expected.Hostname()) && port(actual) == port(expected)
+}
+
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
