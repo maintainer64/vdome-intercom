@@ -1,0 +1,17 @@
+tools/
+research/*
+!research/.gitkeep
+data/
+.env
+web/node_modules/
+web/dist/
+bin/
+*.ipa
+*.apk
+*.har
+*.log
+__pycache__/
+web/test-results/
+web/playwright-report/
+.DS_Store
+coverage/
