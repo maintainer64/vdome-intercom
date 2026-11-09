@@ -64,6 +64,7 @@ type CallStatus struct {
 	WSCloseCode     int       `json:"wsCloseCode,omitempty"`
 	RefreshSeconds  int       `json:"refreshSeconds,omitempty"`
 	Pongs           uint64    `json:"pongs"`
+	SIPPongs        uint64    `json:"sipPongs"`
 	RegisteredAt    time.Time `json:"registeredAt"`
 	LastInviteAt    time.Time `json:"lastInviteAt"`
 	ReceivedInvites uint64    `json:"receivedInvites"`

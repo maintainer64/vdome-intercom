@@ -60,6 +60,18 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 			fail <- err
 			return
 		}
+		if err := c.WriteControl(websocket.PongMessage, nil, time.Now().Add(time.Second)); err != nil {
+			fail <- err
+			return
+		}
+		if err := c.WriteMessage(websocket.TextMessage, []byte("\r\n\r\n")); err != nil {
+			fail <- err
+			return
+		}
+		if _, pong, err := c.ReadMessage(); err != nil || string(pong) != "\r\n" {
+			fail <- fmt.Errorf("SIP keepalive not answered")
+			return
+		}
 		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/TCP fixture;branch=z9hG4bK123\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: live-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
 		for range 2 {
 			if err := c.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
@@ -104,7 +116,7 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 		events, _ = l.Events()
 		if len(events) == 1 && events[0].Ended {
 			status := l.Status()
-			if status.ReceivedInvites != 2 || status.AcceptedInvites != 1 || status.RejectedInvites != 0 {
+			if status.ReceivedInvites != 2 || status.AcceptedInvites != 1 || status.RejectedInvites != 0 || status.Pongs == 0 {
 				t.Fatalf("unexpected counters: %+v", status)
 			}
 			return

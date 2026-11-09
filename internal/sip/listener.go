@@ -203,6 +203,13 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
 				return err
 			}
+			// WS control frames may terminate at a proxy and leave the SIP hop
+			// idle. CRLF keeps that hop active too (RFC 7118 section 6).
+			if registered {
+				if err := write("\r\n\r\n"); err != nil {
+					return err
+				}
+			}
 		case <-renew.C:
 			if awaiting {
 				return connectionError("registration_timeout")
@@ -229,6 +236,16 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 				return connectionError("connection_closed")
 			}
 			if strings.TrimSpace(string(received.data)) == "" {
+				switch string(received.data) {
+				case "\r\n\r\n":
+					if err := write("\r\n"); err != nil {
+						return err
+					}
+				case "\r\n":
+					l.mu.Lock()
+					l.status.SIPPongs++
+					l.mu.Unlock()
+				}
 				continue
 			}
 			message, err := parse(string(received.data))
