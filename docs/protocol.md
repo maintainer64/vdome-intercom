@@ -93,8 +93,10 @@ python3 scripts/catalog_protocol.py research/decompiled/sources
    Короткий INVITE сохраняется до 30 секунд после CANCEL/BYE и разрыва WS,
    чтобы опрос не терял событие. Уже обработанный Call-ID не повторяет unlock.
    На реальном соединении наблюдался EOF/WS 1006 через 120 секунд при ответах
-   на WS ping. Добавлен SIP CRLF keep-alive поверх WSS и ответ на double-CRLF;
-   механизм разрешён [RFC 7118 §6](https://www.rfc-editor.org/rfc/rfc7118.html#section-6).
+   на WS ping. Продление REGISTER ограничено интервалом 60 секунд, чтобы
+   поддерживать активность SIP hop, не дожидаясь выданных 200 секунд срока
+   регистрации. Клиент также отвечает на double-CRLF по
+   [RFC 7118 §6](https://www.rfc-editor.org/rfc/rfc7118.html#section-6).
 3. SIP-звонок сопоставляется только по `From` с `phone` домофона в списке своего
    аккаунта. Несовпадение не даёт команды открытия.
 4. X-Call-Session-ID из push не восстанавливается из SIP Call-ID. Адаптер

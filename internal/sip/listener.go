@@ -91,6 +91,9 @@ func (l *Listener) run(ctx context.Context, credential Credential, endpoint stri
 			l.stage("closed", "")
 			return
 		}
+		l.mu.Lock()
+		l.status.Disconnects++
+		l.mu.Unlock()
 		reason := "connection_closed"
 		var failure connectionError
 		if errors.As(err, &failure) {
@@ -152,6 +155,9 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 	if conn.Subprotocol() != "sip" {
 		return connectionError("subprotocol_mismatch")
 	}
+	l.mu.Lock()
+	l.status.Connections++
+	l.mu.Unlock()
 	conn.SetReadLimit(64 << 10)
 	_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
 	conn.SetPongHandler(func(string) error {
@@ -203,13 +209,6 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
 				return err
 			}
-			// WS control frames may terminate at a proxy and leave the SIP hop
-			// idle. CRLF keeps that hop active too (RFC 7118 section 6).
-			if registered {
-				if err := write("\r\n\r\n"); err != nil {
-					return err
-				}
-			}
 		case <-renew.C:
 			if awaiting {
 				return connectionError("registration_timeout")
@@ -241,10 +240,6 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 					if err := write("\r\n"); err != nil {
 						return err
 					}
-				case "\r\n":
-					l.mu.Lock()
-					l.status.SIPPongs++
-					l.mu.Unlock()
 				}
 				continue
 			}
@@ -384,7 +379,10 @@ func registrationRefresh(m message, contact string) (time.Duration, error) {
 			return 0, connectionError("invalid_expiry")
 		}
 	}
-	return time.Duration(seconds) * time.Second * 4 / 5, nil
+	// The deployed SIP path drops idle application flows after 120 seconds
+	// despite responding to WS control pings. REGISTER responses keep the
+	// application hop active; never wait more than a minute between renewals.
+	return min(time.Duration(seconds)*time.Second*4/5, time.Minute), nil
 }
 
 type message struct {

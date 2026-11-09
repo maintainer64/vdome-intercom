@@ -139,10 +139,11 @@ func TestRegistrationTransportsAndNegotiatedExpiry(t *testing.T) {
 		want             time.Duration
 		invalid          bool
 	}{
-		{"", "", 480 * time.Second, false},
+		{"", "", 60 * time.Second, false},
 		{"60", "", 48 * time.Second, false},
 		{"600", "<sip:resident@our.invalid;transport=wss>;expires=30", 24 * time.Second, false},
-		{"600", "<sip:resident@other.invalid>;expires=1", 480 * time.Second, false},
+		{"600", "<sip:resident@other.invalid>;expires=1", 60 * time.Second, false},
+		{"200", "", 60 * time.Second, false},
 		{"0", "", 0, true},
 		{"invalid", "", 0, true},
 	} {
@@ -180,5 +181,66 @@ func TestSIPRejectsAmbiguousHeadersAndUnsupportedDigest(t *testing.T) {
 		if _, err := digest(Credential{Username: "u", Secret: "p", Domain: "d"}, challenge); err == nil {
 			t.Fatal("unsupported or malformed challenge accepted")
 		}
+	}
+}
+
+func TestRegistrationRenewalDoesNotDropIncomingCall(t *testing.T) {
+	received := make(chan struct{})
+	finish := make(chan struct{})
+	failures := make(chan error, 1)
+	up := websocket.Upgrader{Subprotocols: []string{"sip"}, CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			failures <- err
+			return
+		}
+		defer c.Close()
+		_, raw, err := c.ReadMessage()
+		if err != nil {
+			failures <- err
+			return
+		}
+		reg, err := parse(string(raw))
+		if err != nil {
+			failures <- err
+			return
+		}
+		response := strings.Replace(reg.response("200 OK"), "Content-Length: 0", "Expires: 1\r\nContent-Length: 0", 1)
+		if err := c.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
+			failures <- err
+			return
+		}
+		// Wait for the scheduled renewal, then deliver a call before its response.
+		if _, _, err := c.ReadMessage(); err != nil {
+			failures <- err
+			return
+		}
+		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/WS fixture;branch=z9hG4bKrenew\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: renewal-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		if err := c.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
+			failures <- err
+			return
+		}
+		if _, _, err := c.ReadMessage(); err != nil {
+			failures <- err
+			return
+		}
+		close(received)
+		<-finish
+	}))
+	defer server.Close()
+	defer close(finish)
+	l := New(Credential{Domain: "fixture.test", Username: "resident", Secret: "password"}, "ws"+strings.TrimPrefix(server.URL, "http"))
+	defer l.Close()
+	select {
+	case <-received:
+	case err := <-failures:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("incoming call was dropped during renewal")
+	}
+	events, ready := l.Events()
+	if !ready || len(events) != 1 || events[0].ID != "renewal-call" {
+		t.Fatal("registration became unavailable during renewal")
 	}
 }
