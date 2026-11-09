@@ -186,3 +186,15 @@ func TestDuplicateCameraCardsShareOneSnapshotRequest(t *testing.T) {
 		t.Fatalf("duplicate snapshots: %d", calls.Load())
 	}
 }
+
+func TestRejectedRefreshRequiresLoginWithoutExposingResponse(t *testing.T) {
+	for _, status := range []int{400, 401, 403} {
+		p := newTestLive(func(*http.Request) (*http.Response, error) {
+			return reply(status, `{"error":"private-account-token"}`, "application/json"), nil
+		})
+		a := &domain.Auth{AccessToken: "old", RefreshToken: "rejected"}
+		if err := p.refresh(context.Background(), a); !errors.Is(err, domain.ErrUnauthorized) || strings.Contains(err.Error(), "private") {
+			t.Fatalf("status=%d error=%v", status, err)
+		}
+	}
+}

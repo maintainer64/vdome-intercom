@@ -91,3 +91,45 @@ test('leaving cameras cancels even a stream that starts late', async ({ page }) 
   await page.getByRole('tab', { name: 'Камеры' }).click()
   await expect(page.getByRole('button', { name: 'Смотреть эфир' })).toBeEnabled()
 })
+
+test('expired login can be renewed and incoming calls are visible', async ({ page }) => {
+  await demoLogin(page)
+  let renewed = false
+  let ringing = true
+  const at = new Date().toISOString()
+  await page.route('**/api/state', async route => {
+    const response = await route.fetch()
+    const state = await response.json()
+    state.provider = 'live'
+    state.needsLogin = !renewed
+    state.connected = renewed
+    state.callReady = renewed
+    state.syncError = renewed ? '' : 'МТС отклонил сессию. Обновите вход через МТС ID.'
+    state.loginUrl = 'https://login.mts.ru/'
+    state.rules = { entrance: { mode: 'always', armedAt: at } }
+    state.incomingCalls = renewed && ringing ? [{ deviceId: 'entrance', at }] : []
+    state.callStatus = { state: renewed ? 'registered' : 'waiting', receivedInvites: renewed ? 1 : 0, acceptedInvites: renewed ? 1 : 0, rejectedInvites: 0, unmappedCalls: 0, registeredAt: renewed ? at : '', lastInviteAt: renewed ? at : '' }
+    state.audit = renewed ? [{ at, deviceId: 'entrance', action: 'incoming', result: 'received' }] : []
+    await route.fulfill({ response, json: state })
+  })
+  await page.route('**/api/auth/reauth', async route => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postDataJSON()).toEqual({ ssoResponse: '{"fixture":"callback"}' })
+    renewed = true
+    await route.fulfill({ json: { authenticated: true } })
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Обновить вход', exact: true }).click()
+  await page.getByLabel('Ответ после входа').fill('{"fixture":"callback"}')
+  await page.locator('form').getByRole('button', { name: 'Обновить вход', exact: true }).click()
+  await expect(page.getByText('Вход обновлён.', { exact: false })).toBeVisible()
+  await expect(page.getByText('Готовы принимать вызовы', { exact: true })).toBeVisible()
+  const banner = page.getByRole('status').filter({ hasText: 'Входящий вызов' })
+  await expect(banner).toBeVisible()
+  ringing = false
+  await expect(banner).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Домофоны' }).click()
+  await expect(page.getByRole('group', { name: 'Автооткрытие — Подъезд', exact: true }).getByRole('button', { name: 'Каждый вызов' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('tab', { name: 'Журнал' }).click()
+  await expect(page.getByRole('cell', { name: 'Вызов получен' })).toBeVisible()
+})

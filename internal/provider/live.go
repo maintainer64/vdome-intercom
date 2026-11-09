@@ -43,10 +43,12 @@ type loginChallenge struct {
 	expires time.Time
 }
 type liveAccount struct {
-	credential sip.Credential
-	listener   *sip.Listener
-	devices    map[string]liveDevice
-	streams    map[string]string
+	credential    sip.Credential
+	listener      *sip.Listener
+	devices       map[string]liveDevice
+	streams       map[string]string
+	unmapped      map[string]time.Time
+	unmappedCalls int
 }
 type liveDevice struct{ intercomID, cameraID, phone, lock string }
 type tokens struct {
@@ -179,8 +181,13 @@ func (p *Live) refresh(ctx context.Context, a *domain.Auth) error {
 	if a.RefreshToken == "" {
 		return domain.ErrUnauthorized
 	}
-	b, _, _, err := p.raw(ctx, "PUT", p.gateway+"/user-service/api/v2/auth/refresh", "", map[string]string{"refreshToken": a.RefreshToken})
+	b, _, status, err := p.raw(ctx, "PUT", p.gateway+"/user-service/api/v2/auth/refresh", "", map[string]string{"refreshToken": a.RefreshToken})
 	if err != nil {
+		// HTTP 400 also means the refresh request was rejected; require a new login.
+		// Keep response bodies out of both logs and browser diagnostics.
+		if status == 400 || status == 401 || status == 403 {
+			return domain.ErrUnauthorized
+		}
 		return err
 	}
 	var pair tokens
@@ -516,16 +523,43 @@ func (p *Live) Calls(_ context.Context, a *domain.Auth) ([]domain.Call, error) {
 		return nil, errors.New("SIP connection not registered")
 	}
 	calls := []domain.Call{}
+	for id, at := range account.unmapped {
+		if time.Since(at) > 30*time.Second {
+			delete(account.unmapped, id)
+		}
+	}
 	for _, event := range events {
 		// SIP caller is mapped only to this account's returned devices. Every
 		// explicit lock can have its own rule; unmapped callers never open.
+		matched := false
 		for id, d := range account.devices {
 			if d.intercomID != "" && sip.Identity(d.phone) == event.From && event.From != "" {
-				calls = append(calls, domain.Call{ID: event.ID, DeviceID: id, Kind: "incoming", At: event.At})
+				matched = true
+				calls = append(calls, domain.Call{ID: event.ID, DeviceID: id, Kind: "incoming", At: event.At, Ended: event.Ended})
+			}
+		}
+		if !matched {
+			if account.unmapped == nil {
+				account.unmapped = map[string]time.Time{}
+			}
+			if _, seen := account.unmapped[event.ID]; !seen {
+				account.unmapped[event.ID] = event.At
+				account.unmappedCalls++
 			}
 		}
 	}
 	return calls, nil
+}
+func (p *Live) CallStatus(subject string) domain.CallStatus {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a := p.accounts[subject]
+	if a == nil || a.listener == nil {
+		return domain.CallStatus{State: "waiting"}
+	}
+	status := a.listener.Status()
+	status.UnmappedCalls = a.unmappedCalls
+	return status
 }
 func (p *Live) Open(ctx context.Context, a *domain.Auth, id, requestID string) error {
 	p.mu.Lock()

@@ -33,6 +33,10 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 			fail <- err
 			return
 		}
+		if !strings.HasPrefix(reg.one("via"), "SIP/2.0/WS ") || !strings.Contains(reg.one("contact"), ";transport=ws>") {
+			fail <- fmt.Errorf("registration transport does not match WebSocket")
+			return
+		}
 		challenge := strings.Replace(reg.response("401 Unauthorized"), "Content-Length: 0", `WWW-Authenticate: Digest realm="fixture",nonce="abcd",algorithm=MD5`+"\r\nContent-Length: 0", 1)
 		if err := c.WriteMessage(websocket.TextMessage, []byte(challenge)); err != nil {
 			fail <- err
@@ -98,12 +102,63 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		events, _ = l.Events()
-		if len(events) == 0 {
+		if len(events) == 1 && events[0].Ended {
+			status := l.Status()
+			if status.ReceivedInvites != 2 || status.AcceptedInvites != 1 || status.RejectedInvites != 0 {
+				t.Fatalf("unexpected counters: %+v", status)
+			}
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("CANCEL did not clear live call")
+	t.Fatal("CANCEL did not end the call while retaining its occurrence")
+}
+
+func TestRegistrationTransportsAndNegotiatedExpiry(t *testing.T) {
+	for _, transport := range []string{"WS", "WSS"} {
+		r := registration{credential: Credential{Username: "resident", Domain: "fixture.test"}, transport: transport, contact: "our.invalid"}
+		m, err := parse(r.request(""))
+		if err != nil || !strings.HasPrefix(m.one("via"), "SIP/2.0/"+transport+" ") || !strings.Contains(m.one("contact"), ";transport="+strings.ToLower(transport)+">") {
+			t.Fatal("incorrect WebSocket registration transport")
+		}
+	}
+	for _, tc := range []struct {
+		expires, contact string
+		want             time.Duration
+		invalid          bool
+	}{
+		{"", "", 480 * time.Second, false},
+		{"60", "", 48 * time.Second, false},
+		{"600", "<sip:resident@our.invalid;transport=wss>;expires=30", 24 * time.Second, false},
+		{"600", "<sip:resident@other.invalid>;expires=1", 480 * time.Second, false},
+		{"0", "", 0, true},
+		{"invalid", "", 0, true},
+	} {
+		m := message{headers: map[string][]string{"expires": {tc.expires}, "contact": {tc.contact}}}
+		got, err := registrationRefresh(m, "our.invalid")
+		if (err != nil) != tc.invalid || got != tc.want {
+			t.Fatalf("expires=%q: got %s, err=%v", tc.expires, got, err)
+		}
+	}
+}
+
+func TestConnectionDiagnosticsDoNotExposeServerBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "private-token-and-account", 403) }))
+	defer server.Close()
+	l := New(Credential{Username: "u", Domain: "fixture.test", Secret: "password"}, "ws"+strings.TrimPrefix(server.URL, "http"))
+	defer l.Close()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		s := l.Status()
+		if s.State == "retrying" {
+			if s.HTTPStatus != 403 || s.Reason != "websocket_failed" {
+				t.Fatalf("unexpected diagnostics: %+v", s)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("missing failed connection diagnostics")
 }
 func TestSIPRejectsAmbiguousHeadersAndUnsupportedDigest(t *testing.T) {
 	if _, err := parse("INVITE sip:u@d SIP/2.0\r\nFrom: <sip:a@d>\r\nFrom: <sip:b@d>\r\nTo: <sip:u@d>\r\nVia: SIP/2.0/TCP d\r\nCall-ID: a\r\nCSeq: 1 INVITE\r\n\r\n"); err == nil {

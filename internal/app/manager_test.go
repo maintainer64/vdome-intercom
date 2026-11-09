@@ -25,7 +25,10 @@ func (f *fakeProvider) Devices(context.Context, *domain.Auth) ([]domain.Device, 
 	}
 	return []domain.Device{{ID: "door", APIStatus: "online", CanOpen: true}}, nil
 }
-func (f *fakeProvider) Calls(context.Context, *domain.Auth) ([]domain.Call, error) {
+func (f *fakeProvider) Calls(_ context.Context, a *domain.Auth) ([]domain.Call, error) {
+	if a.Subject != "user" {
+		return []domain.Call{}, nil
+	}
 	return append([]domain.Call{}, f.calls...), nil
 }
 func (f *fakeProvider) Open(context.Context, *domain.Auth, string, string) error {
@@ -358,5 +361,106 @@ func TestMediaAuthorizationDoesNotWaitForPollingAndRevokes(t *testing.T) {
 	}
 	if _, _, err := m.StreamFile(token, "absent", "index.m3u8"); !errors.Is(err, domain.ErrUnauthorized) {
 		t.Fatal("logout did not revoke media")
+	}
+}
+
+func TestShortEndedCallStillOpensOnceAndAppearsInJournal(t *testing.T) {
+	m, f, token, now := setup(t)
+	arm(t, m, token, domain.Next)
+	*now = now.Add(time.Second)
+	f.calls = []domain.Call{{ID: "short", DeviceID: "door", Kind: "incoming", At: *now, Ended: true}}
+	poll(t, m)
+	poll(t, m)
+	v, _ := m.View(token)
+	if f.opens != 1 || len(v.IncomingCalls) != 0 || len(v.Audit) != 2 || v.Audit[0].Action != "auto" || v.Audit[1].Action != "incoming" {
+		t.Fatalf("opens=%d, incoming=%d, audit=%+v", f.opens, len(v.IncomingCalls), v.Audit)
+	}
+}
+
+func TestIncomingCallVisibleAndLoggedWithAutomationOff(t *testing.T) {
+	m, f, token, now := setup(t)
+	call(f, *now, "visible")
+	poll(t, m)
+	poll(t, m)
+	v, _ := m.View(token)
+	if f.opens != 0 || len(v.IncomingCalls) != 1 || len(v.Audit) != 1 || v.Audit[0].Result != "received" {
+		t.Fatalf("invalid incoming call state: %+v", v)
+	}
+	f.calls[0].Ended = true
+	poll(t, m)
+	v, _ = m.View(token)
+	if len(v.IncomingCalls) != 0 || len(v.Audit) != 1 {
+		t.Fatal("ended call remains active or duplicated")
+	}
+}
+
+type expiredProvider struct {
+	*fakeProvider
+	attempts int
+	expired  bool
+}
+
+func (p *expiredProvider) Devices(ctx context.Context, a *domain.Auth) ([]domain.Device, error) {
+	p.attempts++
+	if p.expired {
+		return nil, domain.ErrUnauthorized
+	}
+	return p.fakeProvider.Devices(ctx, a)
+}
+func TestExpiredSessionStopsPollingAndReauthPreservesRules(t *testing.T) {
+	p := &expiredProvider{fakeProvider: &fakeProvider{}}
+	m, err := New(p, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	now := time.Now()
+	m.now = func() time.Time { return now }
+	_, token, err := m.Login(context.Background(), domain.Credentials{Phone: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	poll(t, m)
+	arm(t, m, token, domain.Always)
+	p.expired = true
+	if m.Poll(context.Background()) == nil {
+		t.Fatal("missing auth error")
+	}
+	for range 4 {
+		now = now.Add(time.Minute)
+		poll(t, m)
+	}
+	v, _ := m.View(token)
+	if p.attempts != 2 || !v.NeedsLogin || v.Connected || v.CallReady || v.SyncError == "" {
+		t.Fatalf("invalid expired state: attempts=%d, view=%+v", p.attempts, v)
+	}
+	if m.Reauthenticate(context.Background(), token, domain.Credentials{Phone: "another-user"}) == nil {
+		t.Fatal("reauth accepted different account")
+	}
+	p.expired = false
+	if err := m.Reauthenticate(context.Background(), token, domain.Credentials{Phone: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	call(p.fakeProvider, now, "during-login")
+	poll(t, m)
+	if p.opens != 0 {
+		t.Fatal("reauth opened backlog")
+	}
+	now = now.Add(time.Second)
+	call(p.fakeProvider, now, "after-login")
+	poll(t, m)
+	v, _ = m.View(token)
+	if v.NeedsLogin || !v.CallReady || v.Rules["door"].Mode != domain.Always || p.opens != 1 {
+		t.Fatal("reauth did not restore session and automation")
+	}
+}
+
+func TestFailedReauthSaveRetainsPreviousCredentials(t *testing.T) {
+	m, _, token, _ := setup(t)
+	s := m.sessions[sessionKey(token)]
+	s.Auth.AccessToken = "original-token"
+	m.store = &memoryStore{fail: true}
+	if m.Reauthenticate(context.Background(), token, domain.Credentials{Phone: "user"}) == nil || s.Auth.AccessToken != "original-token" {
+		t.Fatal("reauth did not roll back after storage failure")
 	}
 }

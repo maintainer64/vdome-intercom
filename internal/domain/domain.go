@@ -52,6 +52,29 @@ type Call struct {
 	DeviceID string    `json:"deviceId"`
 	Kind     string    `json:"kind"`
 	At       time.Time `json:"at"`
+	Ended    bool      `json:"ended,omitempty"`
+}
+
+// CallStatus contains only operational metadata; never SIP identities or frames.
+type CallStatus struct {
+	State           string    `json:"state"`
+	Reason          string    `json:"reason,omitempty"`
+	HTTPStatus      int       `json:"httpStatus,omitempty"`
+	SIPStatus       int       `json:"sipStatus,omitempty"`
+	WSCloseCode     int       `json:"wsCloseCode,omitempty"`
+	RefreshSeconds  int       `json:"refreshSeconds,omitempty"`
+	Pongs           uint64    `json:"pongs"`
+	RegisteredAt    time.Time `json:"registeredAt"`
+	LastInviteAt    time.Time `json:"lastInviteAt"`
+	ReceivedInvites uint64    `json:"receivedInvites"`
+	AcceptedInvites uint64    `json:"acceptedInvites"`
+	RejectedInvites uint64    `json:"rejectedInvites"`
+	UnmappedCalls   int       `json:"unmappedCalls"`
+}
+
+type IncomingCall struct {
+	DeviceID string    `json:"deviceId"`
+	At       time.Time `json:"at"`
 }
 
 type Mode string

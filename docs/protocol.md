@@ -35,6 +35,7 @@ JADX 1.5.6 сохранил исходники с частичными ошиб�
 | Заголовки | Authorization: Bearer; X-Device-Type: ANDROID; Request-Id: UUID; опциональный X-Device-Token | `ru/mts/vdome/core/backend/interceptors/*` |
 | Auto-open | локальные SharedPreferences `autoOpen`, `autoOpenChecked`, `autoOpenCheckedTime` | `com/ub/smartresident/call/interactor/ShowIncomingCallNotification2.java` |
 | Live call | SIP REGISTER с MD5 Digest; входящий INVITE, WebSocket subprotocol `sip` | `ru/mts/callibry/signal/sip/`, `transport/TransportWebsocket.java` |
+| SIP transport | Via WSS/WS и Contact transport=wss/ws следуют схеме wsUri | `com/mtsiot/intercom_callibry/Settings.java`, `ru/mts/callibry/signal/sip/Dialog.java`, `message/headers/Contact.java` |
 | SIP credentials | /self → list[0].auth[0].credential: sip, secret, domain | `.../intercom/repo/mediator/repository/IntercomRepository3.java` |
 | Параметры вызова | caller, call session, camera, timestamp, WSS и SIP server в push | `.../call/interactor/remote/GetRemoteCallActions3.java`, `SetupIncomingCallConnection2.java` |
 
@@ -85,6 +86,12 @@ python3 scripts/catalog_protocol.py research/decompiled/sources
    в CoilModule и независимому CameraSnapshotSaver. Ожидается проверка кадра.
 2. SIP-параметры в push могут отличаться от fallback WSS/домена аккаунта.
    FCM/MPS клиент не реализован. Постоянная регистрация может быть недостаточна.
+   9 ноября после обновления входа сервер подтвердил REGISTER кодом 200 OK.
+   Это подтверждает регистрацию, но не доставку вызовов: нужен реальный звонок.
+   Исправлена регистрация TCP поверх WSS на WSS, как в Android; продление
+   учитывает выданный Expires/Contact expires, не отключая приём во время обновления.
+   Короткий INVITE сохраняется до 30 секунд после CANCEL/BYE и разрыва WS,
+   чтобы опрос не терял событие. Уже обработанный Call-ID не повторяет unlock.
 3. SIP-звонок сопоставляется только по `From` с `phone` домофона в списке своего
    аккаунта. Несовпадение не даёт команды открытия.
 4. X-Call-Session-ID из push не восстанавливается из SIP Call-ID. Адаптер

@@ -101,3 +101,35 @@ func TestLoopbackOriginAliasesKeepPortSchemeAndCSRFChecks(t *testing.T) {
 		t.Fatal("local alias bypassed public origin")
 	}
 }
+
+func TestReauthRequiresExistingSessionAndPreservesRules(t *testing.T) {
+	m, _, session, _ := setup(t)
+	arm(t, m, session, "always")
+	h, err := Handler(m, "http://127.0.0.1:8081", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		cookie, phone string
+		want          int
+	}{{"", "user", 401}, {session, "different-account", 502}, {session, "user", 200}} {
+		req := httptest.NewRequest("POST", "/api/auth/reauth", strings.NewReader(`{"phone":"`+tc.phone+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-VDome-Request", "1")
+		if tc.cookie != "" {
+			req.AddCookie(&http.Cookie{Name: cookieName, Value: tc.cookie})
+		}
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, req)
+		if response.Code != tc.want {
+			t.Fatalf("reauth status=%d want=%d", response.Code, tc.want)
+		}
+		if strings.Contains(response.Body.String(), "secret") {
+			t.Fatal("credentials exposed")
+		}
+	}
+	v, _ := m.View(session)
+	if v.Rules["door"].Mode != "always" {
+		t.Fatal("reauth erased existing rule")
+	}
+}

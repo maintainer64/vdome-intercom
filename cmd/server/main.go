@@ -82,10 +82,19 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
+		lastReport := ""
+		failed := false
 		for {
-			if err := m.Poll(ctx); err != nil && ctx.Err() == nil {
+			err := m.Poll(ctx)
+			report := m.ConnectionReport()
+			if report != lastReport && ctx.Err() == nil {
+				log.Print("Состояние подключения VDome: ", report)
+				lastReport = report
+			}
+			if err != nil && !failed && ctx.Err() == nil {
 				log.Print("Синхронизация не завершена; автоматические команды при ошибке не повторяются")
 			}
+			failed = err != nil
 			select {
 			case <-ctx.Done():
 				return

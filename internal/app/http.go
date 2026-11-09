@@ -37,6 +37,7 @@ func Handler(m *Manager, origin, dist string) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /api/state", h.state)
 	mux.HandleFunc("POST /api/auth/login", h.login)
+	mux.HandleFunc("POST /api/auth/reauth", h.reauthenticate)
 	mux.HandleFunc("POST /api/auth/logout", h.logout)
 	mux.HandleFunc("PUT /api/devices/{id}/mode", h.mode)
 	mux.HandleFunc("POST /api/devices/{id}/open", h.open)
@@ -150,6 +151,21 @@ func (h *HTTP) state(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, v)
+}
+func (h *HTTP) reauthenticate(w http.ResponseWriter, r *http.Request) {
+	if !h.allowLogin(r) {
+		writeJSON(w, 429, map[string]string{"error": "Слишком много попыток входа"})
+		return
+	}
+	var c domain.Credentials
+	if !decode(w, r, &c) {
+		return
+	}
+	if err := h.m.Reauthenticate(r.Context(), token(r), c); err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"authenticated": true})
 }
 func (h *HTTP) allowLogin(r *http.Request) bool {
 	h.mu.Lock()
