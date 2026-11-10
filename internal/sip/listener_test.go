@@ -33,6 +33,10 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 			fail <- err
 			return
 		}
+		if !strings.HasPrefix(reg.one("via"), "SIP/2.0/WS ") || !strings.Contains(reg.one("contact"), ";transport=ws>") {
+			fail <- fmt.Errorf("registration transport does not match WebSocket")
+			return
+		}
 		challenge := strings.Replace(reg.response("401 Unauthorized"), "Content-Length: 0", `WWW-Authenticate: Digest realm="fixture",nonce="abcd",algorithm=MD5`+"\r\nContent-Length: 0", 1)
 		if err := c.WriteMessage(websocket.TextMessage, []byte(challenge)); err != nil {
 			fail <- err
@@ -56,7 +60,24 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 			fail <- err
 			return
 		}
-		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/TCP fixture;branch=z9hG4bK123\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: live-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		if err := c.WriteControl(websocket.PongMessage, nil, time.Now().Add(time.Second)); err != nil {
+			fail <- err
+			return
+		}
+		if err := c.WriteMessage(websocket.TextMessage, []byte("\r\n\r\n")); err != nil {
+			fail <- err
+			return
+		}
+		if _, pong, err := c.ReadMessage(); err != nil || string(pong) != "\r\n" {
+			fail <- fmt.Errorf("SIP keepalive not answered")
+			return
+		}
+		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/TCP fixture;branch=z9hG4bK123\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:apartment-alias@fixture.test>\r\nCall-ID: live-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		foreign := strings.Replace(invite, "INVITE sip:resident@", "INVITE sip:someone-else@", 1)
+		if err := c.WriteMessage(websocket.TextMessage, []byte(foreign)); err != nil {
+			fail <- err
+			return
+		}
 		for range 2 {
 			if err := c.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
 				fail <- err
@@ -98,12 +119,64 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		events, _ = l.Events()
-		if len(events) == 0 {
+		if len(events) == 1 && events[0].Ended {
+			status := l.Status()
+			if status.ReceivedInvites != 3 || status.AcceptedInvites != 1 || status.RejectedInvites != 1 || status.Pongs == 0 || status.LastRejectedReason != "recipient_user_mismatch" || status.LastRejectedAt.IsZero() {
+				t.Fatalf("unexpected counters: %+v", status)
+			}
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("CANCEL did not clear live call")
+	t.Fatal("CANCEL did not end the call while retaining its occurrence")
+}
+
+func TestRegistrationTransportsAndNegotiatedExpiry(t *testing.T) {
+	for _, transport := range []string{"WS", "WSS"} {
+		r := registration{credential: Credential{Username: "resident", Domain: "fixture.test"}, transport: transport, contact: "our.invalid"}
+		m, err := parse(r.request(""))
+		if err != nil || !strings.HasPrefix(m.one("via"), "SIP/2.0/"+transport+" ") || !strings.Contains(m.one("contact"), ";transport="+strings.ToLower(transport)+">") {
+			t.Fatal("incorrect WebSocket registration transport")
+		}
+	}
+	for _, tc := range []struct {
+		expires, contact string
+		want             time.Duration
+		invalid          bool
+	}{
+		{"", "", 60 * time.Second, false},
+		{"60", "", 48 * time.Second, false},
+		{"600", "<sip:resident@our.invalid;transport=wss>;expires=30", 24 * time.Second, false},
+		{"600", "<sip:resident@other.invalid>;expires=1", 60 * time.Second, false},
+		{"200", "", 60 * time.Second, false},
+		{"0", "", 0, true},
+		{"invalid", "", 0, true},
+	} {
+		m := message{headers: map[string][]string{"expires": {tc.expires}, "contact": {tc.contact}}}
+		got, err := registrationRefresh(m, "our.invalid")
+		if (err != nil) != tc.invalid || got != tc.want {
+			t.Fatalf("expires=%q: got %s, err=%v", tc.expires, got, err)
+		}
+	}
+}
+
+func TestConnectionDiagnosticsDoNotExposeServerBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "private-token-and-account", 403) }))
+	defer server.Close()
+	l := New(Credential{Username: "u", Domain: "fixture.test", Secret: "password"}, "ws"+strings.TrimPrefix(server.URL, "http"))
+	defer l.Close()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		s := l.Status()
+		if s.State == "retrying" {
+			if s.HTTPStatus != 403 || s.Reason != "websocket_failed" {
+				t.Fatalf("unexpected diagnostics: %+v", s)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("missing failed connection diagnostics")
 }
 func TestSIPRejectsAmbiguousHeadersAndUnsupportedDigest(t *testing.T) {
 	if _, err := parse("INVITE sip:u@d SIP/2.0\r\nFrom: <sip:a@d>\r\nFrom: <sip:b@d>\r\nTo: <sip:u@d>\r\nVia: SIP/2.0/TCP d\r\nCall-ID: a\r\nCSeq: 1 INVITE\r\n\r\n"); err == nil {
@@ -112,6 +185,92 @@ func TestSIPRejectsAmbiguousHeadersAndUnsupportedDigest(t *testing.T) {
 	for _, challenge := range []string{"Basic", `Digest realm="x",nonce="n",algorithm=SHA-512`, "Digest realm=\"x\",nonce=\"n\r\nInjected: yes\",algorithm=MD5"} {
 		if _, err := digest(Credential{Username: "u", Secret: "p", Domain: "d"}, challenge); err == nil {
 			t.Fatal("unsupported or malformed challenge accepted")
+		}
+	}
+}
+
+func TestRegistrationRenewalDoesNotDropIncomingCall(t *testing.T) {
+	received := make(chan struct{})
+	finish := make(chan struct{})
+	failures := make(chan error, 1)
+	up := websocket.Upgrader{Subprotocols: []string{"sip"}, CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			failures <- err
+			return
+		}
+		defer c.Close()
+		_, raw, err := c.ReadMessage()
+		if err != nil {
+			failures <- err
+			return
+		}
+		reg, err := parse(string(raw))
+		if err != nil {
+			failures <- err
+			return
+		}
+		response := strings.Replace(reg.response("200 OK"), "Content-Length: 0", "Expires: 1\r\nContent-Length: 0", 1)
+		if err := c.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
+			failures <- err
+			return
+		}
+		// Wait for the scheduled renewal, then deliver a call before its response.
+		if _, _, err := c.ReadMessage(); err != nil {
+			failures <- err
+			return
+		}
+		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/WS fixture;branch=z9hG4bKrenew\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: renewal-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		if err := c.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
+			failures <- err
+			return
+		}
+		if _, _, err := c.ReadMessage(); err != nil {
+			failures <- err
+			return
+		}
+		close(received)
+		<-finish
+	}))
+	defer server.Close()
+	defer close(finish)
+	l := New(Credential{Domain: "fixture.test", Username: "resident", Secret: "password"}, "ws"+strings.TrimPrefix(server.URL, "http"))
+	defer l.Close()
+	select {
+	case <-received:
+	case err := <-failures:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("incoming call was dropped during renewal")
+	}
+	events, ready := l.Events()
+	if !ready || len(events) != 1 || events[0].ID != "renewal-call" {
+		t.Fatal("registration became unavailable during renewal")
+	}
+}
+
+func TestInviteRecipientUsesDeliveryAddressInsteadOfLogicalTo(t *testing.T) {
+	credential := Credential{Username: "resident", Domain: "fixture.test", Registrar: "registrar.test"}
+	for _, tc := range []struct {
+		target, to, id string
+		registered     bool
+		want           string
+	}{
+		{"sip:resident@fixture.test", "<sip:apartment@elsewhere.test>", "id", true, ""},
+		{"sip:resident@our.invalid;transport=wss", "<tel:+79000000000>", "id", true, ""},
+		{"sips:%72esident@FIXTURE.TEST", "<sip:alias@fixture.test>", "id", true, ""},
+		{"sip:resident@registrar.test", "<sip:alias@fixture.test>", "id", true, ""},
+		{"sip:other@fixture.test", "<sip:resident@fixture.test>", "id", true, "recipient_user_mismatch"},
+		{"sip:resident@foreign.test", "<sip:resident@fixture.test>", "id", true, "recipient_host_mismatch"},
+		{"tel:resident", "<sip:resident@fixture.test>", "id", true, "invalid_request_uri"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", "id", false, "not_registered"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", "", true, "invalid_call_id"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", strings.Repeat("x", 257), true, "invalid_call_id"},
+	} {
+		m := message{first: "INVITE " + tc.target + " SIP/2.0", headers: map[string][]string{"to": {tc.to}, "call-id": {tc.id}}}
+		if got := inviteRejection(m, tc.registered, credential, "our.invalid"); got != tc.want {
+			t.Errorf("target=%q registered=%v got=%q want=%q", tc.target, tc.registered, got, tc.want)
 		}
 	}
 }

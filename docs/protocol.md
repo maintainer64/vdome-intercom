@@ -35,6 +35,7 @@ JADX 1.5.6 сохранил исходники с частичными ошиб�
 | Заголовки | Authorization: Bearer; X-Device-Type: ANDROID; Request-Id: UUID; опциональный X-Device-Token | `ru/mts/vdome/core/backend/interceptors/*` |
 | Auto-open | локальные SharedPreferences `autoOpen`, `autoOpenChecked`, `autoOpenCheckedTime` | `com/ub/smartresident/call/interactor/ShowIncomingCallNotification2.java` |
 | Live call | SIP REGISTER с MD5 Digest; входящий INVITE, WebSocket subprotocol `sip` | `ru/mts/callibry/signal/sip/`, `transport/TransportWebsocket.java` |
+| SIP transport | Via WSS/WS и Contact transport=wss/ws следуют схеме wsUri | `com/mtsiot/intercom_callibry/Settings.java`, `ru/mts/callibry/signal/sip/Dialog.java`, `message/headers/Contact.java` |
 | SIP credentials | /self → list[0].auth[0].credential: sip, secret, domain | `.../intercom/repo/mediator/repository/IntercomRepository3.java` |
 | Параметры вызова | caller, call session, camera, timestamp, WSS и SIP server в push | `.../call/interactor/remote/GetRemoteCallActions3.java`, `SetupIncomingCallConnection2.java` |
 
@@ -85,8 +86,26 @@ python3 scripts/catalog_protocol.py research/decompiled/sources
    в CoilModule и независимому CameraSnapshotSaver. Ожидается проверка кадра.
 2. SIP-параметры в push могут отличаться от fallback WSS/домена аккаунта.
    FCM/MPS клиент не реализован. Постоянная регистрация может быть недостаточна.
+   9 ноября после обновления входа сервер подтвердил REGISTER кодом 200 OK.
+   Это подтверждает регистрацию, но не доставку вызовов: нужен реальный звонок.
+   Исправлена регистрация TCP поверх WSS на WSS, как в Android; продление
+   учитывает выданный Expires/Contact expires, не отключая приём во время обновления.
+   Короткий INVITE сохраняется до 30 секунд после CANCEL/BYE и разрыва WS,
+   чтобы опрос не терял событие. Уже обработанный Call-ID не повторяет unlock.
+   На реальном соединении наблюдался EOF/WS 1006 через 120 секунд при ответах
+   на WS ping. Продление REGISTER ограничено интервалом 60 секунд, чтобы
+   поддерживать активность SIP hop, не дожидаясь выданных 200 секунд срока
+   регистрации. Клиент также отвечает на double-CRLF по
+   [RFC 7118 §6](https://www.rfc-editor.org/rfc/rfc7118.html#section-6).
 3. SIP-звонок сопоставляется только по `From` с `phone` домофона в списке своего
    аккаунта. Несовпадение не даёт команды открытия.
+   Адрес получателя проверяется по Request-URI: SIP-абонент и домен должны
+   совпасть с зарегистрированным Contact/AoR или настроенным registrar.
+   `To` может содержать исходный адрес при переадресации и не является фильтром
+   получателя ([RFC 3261 §8.2.2.1](https://www.rfc-editor.org/rfc/rfc3261.html#section-8.2.2.1)).
+   Причины отказа — незавершённая регистрация, недопустимый Call-ID, некорректный
+   Request-URI, несовпадение абонента/домена и переполнение очереди — доступны
+   как фиксированные коды без содержимого SIP-пакетов.
 4. X-Call-Session-ID из push не восстанавливается из SIP Call-ID. Адаптер
    использует обычный метод открытия, не выдаёт SIP Call-ID за push session ID.
 5. Реальный аккаунт возвращает подписанные RTSP URL в поле `rtsp` списка камер.

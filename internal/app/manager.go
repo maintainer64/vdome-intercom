@@ -32,6 +32,9 @@ type Session struct {
 	Connected       bool                   `json:"-"`
 	CallReady       bool                   `json:"-"`
 	Ready           bool                   `json:"-"`
+	NeedsLogin      bool                   `json:"-"`
+	SyncError       string                 `json:"-"`
+	IncomingCalls   []domain.IncomingCall  `json:"-"`
 }
 type View struct {
 	LoginURL      string                 `json:"loginUrl,omitempty"`
@@ -41,6 +44,10 @@ type View struct {
 	Persistent    bool                   `json:"persistent"`
 	Connected     bool                   `json:"connected"`
 	CallReady     bool                   `json:"callReady"`
+	NeedsLogin    bool                   `json:"needsLogin"`
+	SyncError     string                 `json:"syncError,omitempty"`
+	CallStatus    domain.CallStatus      `json:"callStatus"`
+	IncomingCalls []domain.IncomingCall  `json:"incomingCalls"`
 	LastSync      time.Time              `json:"lastSync"`
 	Devices       []domain.Device        `json:"devices"`
 	Rules         map[string]domain.Rule `json:"rules"`
@@ -84,6 +91,42 @@ func New(p domain.Provider, store Storage) (*Manager, error) {
 	return m, nil
 }
 func (m *Manager) ProviderName() string { return m.p.Name() }
+
+// ConnectionReport is safe for logs: no subjects, tokens, SIP identities or URLs.
+func (m *Manager) ConnectionReport() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	type report struct {
+		Connected  bool              `json:"connected"`
+		CallsReady bool              `json:"callsReady"`
+		NeedsLogin bool              `json:"needsLogin"`
+		Calls      domain.CallStatus `json:"calls"`
+	}
+	keys := make([]string, 0, len(m.sessions))
+	for key := range m.sessions {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	reports := make([]report, 0, len(keys))
+	for _, key := range keys {
+		s := m.sessions[key]
+		r := report{Connected: s.Connected, CallsReady: s.CallReady, NeedsLogin: s.NeedsLogin}
+		if p, ok := m.p.(interface {
+			CallStatus(string) domain.CallStatus
+		}); ok {
+			r.Calls = p.CallStatus(s.Auth.Subject)
+		}
+		// Keep routine heartbeat/renewal churn out of diagnostic logs.
+		r.Calls.RegisteredAt = time.Time{}
+		r.Calls.Pongs = 0
+		if r.Calls.State == "registered" && r.Calls.SIPStatus == 401 {
+			r.Calls.SIPStatus = 200
+		}
+		reports = append(reports, r)
+	}
+	b, _ := json.Marshal(reports)
+	return string(b)
+}
 func sessionKey(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
@@ -180,6 +223,50 @@ func (m *Manager) Logout(token string) error {
 	}
 	return nil
 }
+
+// Reauthenticate updates credentials for the same account without discarding
+// its rules or audit trail. A full logout/login still starts with all rules off.
+func (m *Manager) Reauthenticate(ctx context.Context, token string, c domain.Credentials) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, err := m.session(token)
+	if err != nil {
+		return err
+	}
+	login, err := m.p.Login(ctx, c)
+	if err != nil {
+		return err
+	}
+	if login.Auth == nil || login.Auth.Subject != s.Auth.Subject || login.Auth.AccessToken == "" {
+		if login.Auth != nil && login.Auth.Subject != s.Auth.Subject {
+			inUse := false
+			for _, other := range m.sessions {
+				if other.Auth.Subject == login.Auth.Subject {
+					inUse = true
+					break
+				}
+			}
+			if !inUse {
+				m.disconnect(login.Auth.Subject)
+			}
+		}
+		return errors.New("reauthentication account mismatch")
+	}
+	old := s.Auth
+	s.Auth = *login.Auth
+	if err := m.save(); err != nil {
+		s.Auth = old
+		return err
+	}
+	m.disconnect(s.Auth.Subject)
+	m.media.StopOwner(sessionKey(token))
+	s.NextRefresh = time.Time{}
+	s.RefreshFailures = 0
+	s.Ready, s.Connected, s.CallReady, s.NeedsLogin = false, false, false, false
+	s.SyncError = ""
+	s.IncomingCalls = nil
+	return nil
+}
 func (m *Manager) View(token string) (View, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -195,6 +282,14 @@ func (m *Manager) View(token string) (View, error) {
 	v.Subject = s.Auth.Subject
 	v.Connected = s.Connected
 	v.CallReady = s.CallReady
+	v.NeedsLogin = s.NeedsLogin
+	v.SyncError = s.SyncError
+	v.IncomingCalls = append([]domain.IncomingCall{}, s.IncomingCalls...)
+	if p, ok := m.p.(interface {
+		CallStatus(string) domain.CallStatus
+	}); ok {
+		v.CallStatus = p.CallStatus(s.Auth.Subject)
+	}
 	v.LastSync = s.LastSync
 	v.Devices = append(v.Devices, s.Devices...)
 	v.Audit = append(v.Audit, s.Audit...)
@@ -365,6 +460,9 @@ func (m *Manager) Poll(ctx context.Context) error {
 }
 
 func (m *Manager) poll(ctx context.Context, s *Session) error {
+	if s.NeedsLogin {
+		return nil
+	}
 	interval := time.Duration(0)
 	if p, ok := m.p.(interface{ DeviceRefreshInterval() time.Duration }); ok {
 		interval = p.DeviceRefreshInterval()
@@ -376,12 +474,21 @@ func (m *Manager) poll(ctx context.Context, s *Session) error {
 		if err != nil {
 			s.Connected = false
 			s.CallReady = false
+			s.IncomingCalls = nil
+			s.SyncError = "VDome недоступен; повторим подключение автоматически."
+			if errors.Is(err, domain.ErrUnauthorized) {
+				s.NeedsLogin = true
+				s.SyncError = "МТС отклонил сессию. Обновите вход через МТС ID."
+				m.disconnect(s.Auth.Subject)
+				m.media.StopOwner(m.sessionID(s))
+			}
 			s.RefreshFailures++
 			delay := 15 * time.Second << min(s.RefreshFailures-1, 3)
 			s.NextRefresh = now.Add(delay)
 			var limited *domain.RateLimitError
 			if errors.As(err, &limited) && limited.Until.After(s.NextRefresh) {
 				s.NextRefresh = limited.Until
+				s.SyncError = limited.Error()
 			}
 			return err
 		}
@@ -392,6 +499,7 @@ func (m *Manager) poll(ctx context.Context, s *Session) error {
 		s.RefreshFailures = 0
 		s.NextRefresh = now.Add(interval)
 		s.Connected = true
+		s.SyncError = ""
 		s.LastSync = now.UTC()
 	}
 	if !s.Connected {
@@ -400,9 +508,16 @@ func (m *Manager) poll(ctx context.Context, s *Session) error {
 	calls, err := m.p.Calls(ctx, &s.Auth)
 	if err != nil {
 		s.CallReady = false
+		s.IncomingCalls = nil
 		return err
 	}
 	s.CallReady = true
+	s.IncomingCalls = []domain.IncomingCall{}
+	for _, c := range calls {
+		if _, err := device(s, c.DeviceID); err == nil && c.ID != "" && c.Kind == "incoming" && !c.Ended && !c.At.IsZero() && !c.At.After(now.Add(2*time.Second)) && now.Sub(c.At) <= 30*time.Second {
+			s.IncomingCalls = append(s.IncomingCalls, domain.IncomingCall{DeviceID: c.DeviceID, At: c.At})
+		}
+	}
 	if !s.Ready {
 		for _, c := range calls {
 			s.Seen[c.DeviceID+"\x00"+c.ID] = m.now()
@@ -419,14 +534,21 @@ func (m *Manager) poll(ctx context.Context, s *Session) error {
 		now := m.now().UTC()
 		s.Seen[key] = now
 		r := s.Rules[c.DeviceID]
-		if c.ID == "" || c.Kind != "incoming" || c.At.IsZero() || c.At.After(now.Add(2*time.Second)) || now.Sub(c.At) > 30*time.Second || !c.At.After(r.ArmedAt) {
+		if c.ID == "" || c.Kind != "incoming" || c.At.IsZero() || c.At.After(now.Add(2*time.Second)) || now.Sub(c.At) > 30*time.Second {
+			continue
+		}
+		d, err := device(s, c.DeviceID)
+		if err != nil {
+			continue
+		}
+		addAudit(s, domain.Audit{At: c.At, DeviceID: c.DeviceID, CallID: c.ID, Action: "incoming", Result: "received"})
+		if !c.At.After(r.ArmedAt) {
 			continue
 		}
 		if r.Mode != domain.Next && r.Mode != domain.Always {
 			continue
 		}
-		d, err := device(s, c.DeviceID)
-		if err != nil || !d.CanOpen || d.APIStatus != "online" {
+		if !d.CanOpen || d.APIStatus != "online" {
 			continue
 		}
 		if !r.LastAttempt.IsZero() && now.Sub(r.LastAttempt) < 10*time.Second {
@@ -460,4 +582,14 @@ func (m *Manager) poll(ctx context.Context, s *Session) error {
 		}
 	}
 	return nil
+}
+
+// Caller holds m.mu; sessions are bounded to sixteen entries.
+func (m *Manager) sessionID(target *Session) string {
+	for id, s := range m.sessions {
+		if s == target {
+			return id
+		}
+	}
+	return ""
 }

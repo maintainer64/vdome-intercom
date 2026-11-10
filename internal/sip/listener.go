@@ -10,12 +10,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"vdome/internal/domain"
 
 	"github.com/gorilla/websocket"
 )
@@ -29,21 +32,33 @@ type Credential struct {
 type Event struct {
 	ID, From string
 	At       time.Time
+	Ended    bool
 }
 type Listener struct {
 	mu     sync.Mutex
 	ready  bool
+	status domain.CallStatus
 	events map[string]Event
 	cancel context.CancelFunc
 }
 
 func New(credential Credential, endpoint string) *Listener {
 	ctx, cancel := context.WithCancel(context.Background())
-	l := &Listener{events: map[string]Event{}, cancel: cancel}
+	l := &Listener{events: map[string]Event{}, cancel: cancel, status: domain.CallStatus{State: "connecting"}}
 	go l.run(ctx, credential, endpoint)
 	return l
 }
 func (l *Listener) Close() { l.cancel() }
+func (l *Listener) Status() domain.CallStatus {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.status
+}
+func (l *Listener) stage(state, reason string) {
+	l.mu.Lock()
+	l.status.State, l.status.Reason = state, reason
+	l.mu.Unlock()
+}
 func (l *Listener) Events() ([]Event, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -60,20 +75,31 @@ func (l *Listener) Events() ([]Event, bool) {
 func (l *Listener) setReady(value bool) {
 	l.mu.Lock()
 	l.ready = value
-	if !value {
-		l.events = map[string]Event{}
-	}
 	l.mu.Unlock()
 }
 func safe(s string) bool { return s != "" && !strings.ContainsAny(s, "\r\n\x00\"\\ <>;") }
 func (l *Listener) run(ctx context.Context, credential Credential, endpoint string) {
 	if !safe(credential.Username) || !safe(credential.Domain) || credential.Secret == "" {
+		l.stage("error", "credentials_missing")
 		return
 	}
 	delay := time.Second
 	for ctx.Err() == nil {
-		_ = l.connect(ctx, credential, endpoint)
+		err := l.connect(ctx, credential, endpoint)
 		l.setReady(false)
+		if ctx.Err() != nil {
+			l.stage("closed", "")
+			return
+		}
+		l.mu.Lock()
+		l.status.Disconnects++
+		l.mu.Unlock()
+		reason := "connection_closed"
+		var failure connectionError
+		if errors.As(err, &failure) {
+			reason = string(failure)
+		}
+		l.stage("retrying", reason)
 		t := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -86,6 +112,10 @@ func (l *Listener) run(ctx context.Context, credential Credential, endpoint stri
 		}
 	}
 }
+
+type connectionError string
+
+func (e connectionError) Error() string { return string(e) }
 
 type readResult struct {
 	data []byte
@@ -100,27 +130,51 @@ func random() string {
 	return hex.EncodeToString(b[:])
 }
 func (l *Listener) connect(ctx context.Context, credential Credential, endpoint string) error {
+	l.stage("connecting", "")
+	l.mu.Lock()
+	l.status.HTTPStatus, l.status.SIPStatus = 0, 0
+	l.status.WSCloseCode = 0
+	l.mu.Unlock()
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" || (u.Scheme != "ws" && u.Scheme != "wss") {
+		return connectionError("invalid_endpoint")
+	}
+	transport := strings.ToUpper(u.Scheme)
 	d := websocket.Dialer{Proxy: http.ProxyFromEnvironment, HandshakeTimeout: 10 * time.Second, Subprotocols: []string{"sip"}}
 	conn, response, err := d.DialContext(ctx, endpoint, http.Header{"Origin": {""}})
 	if err != nil {
 		if response != nil {
+			l.mu.Lock()
+			l.status.HTTPStatus = response.StatusCode
+			l.mu.Unlock()
 			response.Body.Close()
 		}
-		return errors.New("SIP websocket connection failed")
+		return connectionError("websocket_failed")
 	}
 	defer conn.Close()
 	if conn.Subprotocol() != "sip" {
-		return errors.New("unexpected websocket subprotocol")
+		return connectionError("subprotocol_mismatch")
 	}
+	l.mu.Lock()
+	l.status.Connections++
+	l.mu.Unlock()
 	conn.SetReadLimit(64 << 10)
 	_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
-	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(70 * time.Second)) })
+	conn.SetPongHandler(func(string) error {
+		l.mu.Lock()
+		l.status.Pongs++
+		l.mu.Unlock()
+		return conn.SetReadDeadline(time.Now().Add(70 * time.Second))
+	})
 	readCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	reads := make(chan readResult, 1)
 	go func() {
 		for {
 			_, b, err := conn.ReadMessage()
+			if err == nil {
+				_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
+			}
 			select {
 			case reads <- readResult{b, err}:
 			case <-readCtx.Done():
@@ -131,7 +185,8 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 			}
 		}
 	}()
-	reg := registration{credential: credential, callID: random(), tag: random()[:12], contact: random()[:12] + ".invalid"}
+	reg := registration{credential: credential, transport: transport, callID: random(), tag: random()[:12], contact: random()[:12] + ".invalid"}
+	l.stage("registering", "")
 	write := func(message string) error {
 		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		return conn.WriteMessage(websocket.TextMessage, []byte(message))
@@ -144,6 +199,7 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 	ping := time.NewTicker(25 * time.Second)
 	defer ping.Stop()
 	registered := false
+	awaiting := true
 	challenges := 0
 	for {
 		select {
@@ -154,11 +210,11 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 				return err
 			}
 		case <-renew.C:
-			if !registered {
-				return errors.New("SIP registration timed out")
+			if awaiting {
+				return connectionError("registration_timeout")
 			}
-			registered = false
-			l.setReady(false)
+			// An existing registration remains usable during renewal.
+			awaiting = true
 			challenges = 0
 			if err := write(reg.request("")); err != nil {
 				return err
@@ -166,44 +222,73 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 			renew.Reset(12 * time.Second)
 		case received := <-reads:
 			if received.err != nil {
-				return errors.New("SIP connection closed")
+				var closed *websocket.CloseError
+				if errors.As(received.err, &closed) {
+					l.mu.Lock()
+					l.status.WSCloseCode = closed.Code
+					l.mu.Unlock()
+				}
+				var timeout net.Error
+				if errors.As(received.err, &timeout) && timeout.Timeout() {
+					return connectionError("read_timeout")
+				}
+				return connectionError("connection_closed")
 			}
 			if strings.TrimSpace(string(received.data)) == "" {
+				switch string(received.data) {
+				case "\r\n\r\n":
+					if err := write("\r\n"); err != nil {
+						return err
+					}
+				}
 				continue
 			}
 			message, err := parse(string(received.data))
 			if err != nil {
-				return err
+				return connectionError("invalid_message")
 			}
-			_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
 			if strings.HasPrefix(message.first, "SIP/2.0 ") {
 				if message.one("call-id") != reg.callID || message.one("cseq") != fmt.Sprintf("%d REGISTER", reg.sequence) || !strings.Contains(message.one("via"), "branch="+reg.branch) {
 					continue
 				}
+				code, _ := strconv.Atoi(strings.Fields(message.first)[1])
+				l.mu.Lock()
+				l.status.SIPStatus = code
+				l.mu.Unlock()
 				if strings.HasPrefix(message.first, "SIP/2.0 401 ") {
 					challenges++
 					if challenges > 2 {
-						return errors.New("SIP authentication failed")
+						return connectionError("authentication_failed")
 					}
 					auth, err := digest(credential, message.one("www-authenticate"))
 					if err != nil {
-						return err
+						return connectionError("unsupported_authentication")
 					}
 					if err := write(reg.request(auth)); err != nil {
 						return err
 					}
 				} else if strings.HasPrefix(message.first, "SIP/2.0 200 ") {
+					next, err := registrationRefresh(message, reg.contact)
+					if err != nil {
+						return err
+					}
 					registered = true
+					awaiting = false
 					l.setReady(true)
+					l.mu.Lock()
+					l.status.State, l.status.Reason = "registered", ""
+					l.status.RegisteredAt = time.Now().UTC()
+					l.status.RefreshSeconds = int(next / time.Second)
+					l.mu.Unlock()
 					if !renew.Stop() {
 						select {
 						case <-renew.C:
 						default:
 						}
 					}
-					renew.Reset(5 * time.Minute)
+					renew.Reset(next)
 				} else if !strings.HasPrefix(message.first, "SIP/2.0 1") {
-					return errors.New("SIP registration rejected")
+					return connectionError("registration_rejected")
 				}
 				continue
 			}
@@ -215,14 +300,32 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 					return err
 				}
 			case "INVITE":
-				if !registered || id == "" || len(id) > 256 || Identity(message.one("to")) != credential.Username {
+				l.mu.Lock()
+				l.status.ReceivedInvites++
+				l.status.LastInviteAt = time.Now().UTC()
+				if reason := inviteRejection(message, registered, credential, reg.contact); reason != "" {
+					l.status.RejectedInvites++
+					l.status.LastRejectedAt = l.status.LastInviteAt
+					l.status.LastRejectedReason = reason
+					l.mu.Unlock()
 					continue
 				}
-				l.mu.Lock()
-				if len(l.events) < 128 {
-					if _, exists := l.events[id]; !exists {
-						l.events[id] = Event{ID: id, From: Identity(message.one("from")), At: time.Now().UTC()}
+				// Expire events before admitting new calls, even if polling is offline.
+				for key, e := range l.events {
+					if time.Since(e.At) > 30*time.Second {
+						delete(l.events, key)
 					}
+				}
+				if _, exists := l.events[id]; !exists {
+					if len(l.events) >= 128 {
+						l.status.RejectedInvites++
+						l.status.LastRejectedAt = l.status.LastInviteAt
+						l.status.LastRejectedReason = "queue_full"
+						l.mu.Unlock()
+						continue
+					}
+					l.events[id] = Event{ID: id, From: Identity(message.one("from")), At: time.Now().UTC()}
+					l.status.AcceptedInvites++
 				}
 				l.mu.Unlock()
 				if err := write(message.response("100 Trying")); err != nil {
@@ -230,7 +333,11 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 				}
 			case "CANCEL", "BYE":
 				l.mu.Lock()
-				delete(l.events, id)
+				// Retain the occurrence until polling sees it, including short rings.
+				if event, ok := l.events[id]; ok {
+					event.Ended = true
+					l.events[id] = event
+				}
 				l.mu.Unlock()
 				if err := write(message.response("200 OK")); err != nil {
 					return err
@@ -240,21 +347,96 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 	}
 }
 
+func inviteRejection(m message, registered bool, c Credential, contact string) string {
+	if !registered {
+		return "not_registered"
+	}
+	if id := m.one("call-id"); id == "" || len(id) > 256 {
+		return "invalid_call_id"
+	}
+	// To is the original logical callee and may be a forwarded apartment alias.
+	// RFC 3261 section 8.2.2.1 routes to our Contact/AoR via Request-URI.
+	parts := strings.Fields(m.first)
+	if len(parts) != 3 {
+		return "invalid_request_uri"
+	}
+	user, host, ok := sipTarget(parts[1])
+	if !ok {
+		return "invalid_request_uri"
+	}
+	if user != c.Username {
+		return "recipient_user_mismatch"
+	}
+	for _, allowed := range []string{contact, c.Domain, c.Registrar} {
+		if allowed != "" && strings.EqualFold(host, allowed) {
+			return ""
+		}
+	}
+	return "recipient_host_mismatch"
+}
+
+func sipTarget(value string) (user, host string, ok bool) {
+	u, err := url.Parse(value)
+	if err != nil || (!strings.EqualFold(u.Scheme, "sip") && !strings.EqualFold(u.Scheme, "sips")) || u.Fragment != "" {
+		return "", "", false
+	}
+	user, host, ok = strings.Cut(u.Opaque, "@")
+	if !ok || user == "" || host == "" {
+		return "", "", false
+	}
+	// URI parameters and headers are not part of the destination host.
+	host, _, _ = strings.Cut(host, ";")
+	host, _, _ = strings.Cut(host, "?")
+	user, err = url.PathUnescape(user)
+	if err != nil || !safe(user) || !safe(host) {
+		return "", "", false
+	}
+	return user, host, true
+}
+
 type registration struct {
 	credential                   Credential
 	callID, tag, contact, branch string
 	sequence                     int
+	transport                    string
 }
 
 func (r *registration) request(auth string) string {
 	r.sequence++
 	r.branch = "z9hG4bK" + random()
 	uri := "sip:" + r.credential.Username + "@" + r.credential.Domain
-	lines := []string{"REGISTER " + uri + " SIP/2.0", "Via: SIP/2.0/TCP " + r.contact + ";branch=" + r.branch + ";rport", "Max-Forwards: 70", "From: <" + uri + ">;tag=" + r.tag, "To: <" + uri + ">", "Call-ID: " + r.callID, fmt.Sprintf("CSeq: %d REGISTER", r.sequence), "Contact: <sip:" + r.credential.Username + "@" + r.contact + ";transport=tcp>", "Expires: 600", "User-Agent: vdome-go/0.1"}
+	lines := []string{"REGISTER " + uri + " SIP/2.0", "Via: SIP/2.0/" + r.transport + " " + r.contact + ";branch=" + r.branch + ";rport", "Max-Forwards: 70", "From: <" + uri + ">;tag=" + r.tag, "To: <" + uri + ">", "Call-ID: " + r.callID, fmt.Sprintf("CSeq: %d REGISTER", r.sequence), "Contact: <sip:" + r.credential.Username + "@" + r.contact + ";transport=" + strings.ToLower(r.transport) + ">", "Expires: 600", "User-Agent: vdome-go/0.2"}
 	if auth != "" {
 		lines = append(lines, "Authorization: "+auth)
 	}
 	return strings.Join(append(lines, "Content-Length: 0", "", ""), "\r\n")
+}
+
+var expiresParameter = regexp.MustCompile(`(?i)(?:^|;)\s*expires\s*=\s*([0-9]+)(?:\s*;|\s*$)`)
+
+func registrationRefresh(m message, contact string) (time.Duration, error) {
+	value := m.one("expires")
+	for _, header := range m.headers["contact"] {
+		// Other registered contacts must not determine our expiry.
+		if !strings.Contains(header, "@"+contact) {
+			continue
+		}
+		if match := expiresParameter.FindStringSubmatch(header); len(match) == 2 {
+			value = match[1]
+		}
+	}
+	seconds := 600
+	if value != "" {
+		var err error
+		seconds, err = strconv.Atoi(value)
+		if err != nil || seconds < 1 || seconds > 86400 {
+			return 0, connectionError("invalid_expiry")
+		}
+	}
+	// The deployed SIP path drops idle application flows after 120 seconds
+	// despite responding to WS control pings. REGISTER responses keep the
+	// application hop active; never wait more than a minute between renewals.
+	return min(time.Duration(seconds)*time.Second*4/5, time.Minute), nil
 }
 
 type message struct {
