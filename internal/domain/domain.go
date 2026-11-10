@@ -57,21 +57,23 @@ type Call struct {
 
 // CallStatus contains only operational metadata; never SIP identities or frames.
 type CallStatus struct {
-	State           string    `json:"state"`
-	Reason          string    `json:"reason,omitempty"`
-	HTTPStatus      int       `json:"httpStatus,omitempty"`
-	SIPStatus       int       `json:"sipStatus,omitempty"`
-	WSCloseCode     int       `json:"wsCloseCode,omitempty"`
-	RefreshSeconds  int       `json:"refreshSeconds,omitempty"`
-	Pongs           uint64    `json:"pongs"`
-	Connections     uint64    `json:"connections"`
-	Disconnects     uint64    `json:"disconnects"`
-	RegisteredAt    time.Time `json:"registeredAt"`
-	LastInviteAt    time.Time `json:"lastInviteAt"`
-	ReceivedInvites uint64    `json:"receivedInvites"`
-	AcceptedInvites uint64    `json:"acceptedInvites"`
-	RejectedInvites uint64    `json:"rejectedInvites"`
-	UnmappedCalls   int       `json:"unmappedCalls"`
+	State              string    `json:"state"`
+	Reason             string    `json:"reason,omitempty"`
+	HTTPStatus         int       `json:"httpStatus,omitempty"`
+	SIPStatus          int       `json:"sipStatus,omitempty"`
+	WSCloseCode        int       `json:"wsCloseCode,omitempty"`
+	RefreshSeconds     int       `json:"refreshSeconds,omitempty"`
+	Pongs              uint64    `json:"pongs"`
+	Connections        uint64    `json:"connections"`
+	Disconnects        uint64    `json:"disconnects"`
+	RegisteredAt       time.Time `json:"registeredAt"`
+	LastInviteAt       time.Time `json:"lastInviteAt"`
+	ReceivedInvites    uint64    `json:"receivedInvites"`
+	AcceptedInvites    uint64    `json:"acceptedInvites"`
+	RejectedInvites    uint64    `json:"rejectedInvites"`
+	LastRejectedAt     time.Time `json:"lastRejectedAt"`
+	LastRejectedReason string    `json:"lastRejectedReason,omitempty"`
+	UnmappedCalls      int       `json:"unmappedCalls"`
 }
 
 type IncomingCall struct {

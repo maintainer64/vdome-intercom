@@ -50,7 +50,7 @@ func TestLiveSIPShortCallReachesAutomationAndUnknownCallerDoesNot(t *testing.T) 
 		for {
 			select {
 			case caller := <-send:
-				invite := fmt.Sprintf("INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/WSS door.invalid;branch=z9hG4bKfixture\r\nFrom: <sip:%s@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: %s-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n", caller, caller)
+				invite := fmt.Sprintf("INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/WSS door.invalid;branch=z9hG4bKfixture\r\nFrom: <sip:%s@fixture.test>;tag=caller\r\nTo: <sip:apartment-alias@fixture.test>\r\nCall-ID: %s-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n", caller, caller)
 				if err := conn.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
 					sent <- err
 					return

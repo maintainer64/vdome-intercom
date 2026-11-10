@@ -108,7 +108,7 @@ test('expired login can be renewed and incoming calls are visible', async ({ pag
     state.loginUrl = 'https://login.mts.ru/'
     state.rules = { entrance: { mode: 'always', armedAt: at } }
     state.incomingCalls = renewed && ringing ? [{ deviceId: 'entrance', at }] : []
-    state.callStatus = { state: renewed ? 'registered' : 'waiting', receivedInvites: renewed ? 1 : 0, acceptedInvites: renewed ? 1 : 0, rejectedInvites: 0, unmappedCalls: 0, registeredAt: renewed ? at : '', lastInviteAt: renewed ? at : '' }
+    state.callStatus = { state: renewed ? 'registered' : 'waiting', receivedInvites: 1, acceptedInvites: renewed ? 1 : 0, rejectedInvites: renewed ? 0 : 1, lastRejectedAt: renewed ? '' : at, lastRejectedReason: renewed ? '' : 'recipient_mismatch', unmappedCalls: 0, registeredAt: renewed ? at : '', lastInviteAt: at }
     state.audit = renewed ? [{ at, deviceId: 'entrance', action: 'incoming', result: 'received' }] : []
     await route.fulfill({ response, json: state })
   })
@@ -120,6 +120,7 @@ test('expired login can be renewed and incoming calls are visible', async ({ pag
   })
   await page.reload()
   await page.getByRole('button', { name: 'Обновить вход', exact: true }).click()
+  await expect(page.getByText('Адрес доставки вызова не соответствует SIP-регистрации аккаунта.', { exact: false })).toBeVisible()
   await page.getByLabel('Ответ после входа').fill('{"fixture":"callback"}')
   await page.locator('form').getByRole('button', { name: 'Обновить вход', exact: true }).click()
   await expect(page.getByText('Вход обновлён.', { exact: false })).toBeVisible()

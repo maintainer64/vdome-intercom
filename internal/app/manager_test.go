@@ -464,3 +464,39 @@ func TestFailedReauthSaveRetainsPreviousCredentials(t *testing.T) {
 		t.Fatal("reauth did not roll back after storage failure")
 	}
 }
+
+type diagnosticProvider struct {
+	*fakeProvider
+	status domain.CallStatus
+}
+
+func (p *diagnosticProvider) CallStatus(string) domain.CallStatus { return p.status }
+func TestConnectionReportIgnoresHeartbeatsButRetainsRejections(t *testing.T) {
+	p := &diagnosticProvider{fakeProvider: &fakeProvider{}, status: domain.CallStatus{State: "registered", SIPStatus: 200, RegisteredAt: time.Now(), Pongs: 1}}
+	m, err := New(p, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	_, token, err := m.Login(context.Background(), domain.Credentials{Phone: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := m.ConnectionReport()
+	p.status.Pongs++
+	p.status.RegisteredAt = p.status.RegisteredAt.Add(time.Minute)
+	p.status.SIPStatus = 401
+	if got := m.ConnectionReport(); got != before {
+		t.Fatal("routine renewal changed diagnostic log")
+	}
+	v, _ := m.View(token)
+	if v.CallStatus.Pongs != 2 || v.CallStatus.RegisteredAt.IsZero() {
+		t.Fatal("log filtering changed UI diagnostics")
+	}
+	p.status.LastRejectedAt = time.Now()
+	p.status.LastRejectedReason = "recipient_mismatch"
+	p.status.RejectedInvites = 1
+	if got := m.ConnectionReport(); got == before {
+		t.Fatal("rejected call did not change diagnostic log")
+	}
+}

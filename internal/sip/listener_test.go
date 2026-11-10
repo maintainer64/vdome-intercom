@@ -72,7 +72,12 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 			fail <- fmt.Errorf("SIP keepalive not answered")
 			return
 		}
-		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/TCP fixture;branch=z9hG4bK123\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:resident@fixture.test>\r\nCall-ID: live-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		invite := "INVITE sip:resident@fixture.test SIP/2.0\r\nVia: SIP/2.0/TCP fixture;branch=z9hG4bK123\r\nFrom: <sip:door@fixture.test>;tag=caller\r\nTo: <sip:apartment-alias@fixture.test>\r\nCall-ID: live-call\r\nCSeq: 1 INVITE\r\nContent-Length: 0\r\n\r\n"
+		foreign := strings.Replace(invite, "INVITE sip:resident@", "INVITE sip:someone-else@", 1)
+		if err := c.WriteMessage(websocket.TextMessage, []byte(foreign)); err != nil {
+			fail <- err
+			return
+		}
 		for range 2 {
 			if err := c.WriteMessage(websocket.TextMessage, []byte(invite)); err != nil {
 				fail <- err
@@ -116,7 +121,7 @@ func TestSIPRegisterInviteRetransmitAndCancel(t *testing.T) {
 		events, _ = l.Events()
 		if len(events) == 1 && events[0].Ended {
 			status := l.Status()
-			if status.ReceivedInvites != 2 || status.AcceptedInvites != 1 || status.RejectedInvites != 0 || status.Pongs == 0 {
+			if status.ReceivedInvites != 3 || status.AcceptedInvites != 1 || status.RejectedInvites != 1 || status.Pongs == 0 || status.LastRejectedReason != "recipient_user_mismatch" || status.LastRejectedAt.IsZero() {
 				t.Fatalf("unexpected counters: %+v", status)
 			}
 			return
@@ -242,5 +247,30 @@ func TestRegistrationRenewalDoesNotDropIncomingCall(t *testing.T) {
 	events, ready := l.Events()
 	if !ready || len(events) != 1 || events[0].ID != "renewal-call" {
 		t.Fatal("registration became unavailable during renewal")
+	}
+}
+
+func TestInviteRecipientUsesDeliveryAddressInsteadOfLogicalTo(t *testing.T) {
+	credential := Credential{Username: "resident", Domain: "fixture.test", Registrar: "registrar.test"}
+	for _, tc := range []struct {
+		target, to, id string
+		registered     bool
+		want           string
+	}{
+		{"sip:resident@fixture.test", "<sip:apartment@elsewhere.test>", "id", true, ""},
+		{"sip:resident@our.invalid;transport=wss", "<tel:+79000000000>", "id", true, ""},
+		{"sips:%72esident@FIXTURE.TEST", "<sip:alias@fixture.test>", "id", true, ""},
+		{"sip:resident@registrar.test", "<sip:alias@fixture.test>", "id", true, ""},
+		{"sip:other@fixture.test", "<sip:resident@fixture.test>", "id", true, "recipient_user_mismatch"},
+		{"sip:resident@foreign.test", "<sip:resident@fixture.test>", "id", true, "recipient_host_mismatch"},
+		{"tel:resident", "<sip:resident@fixture.test>", "id", true, "invalid_request_uri"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", "id", false, "not_registered"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", "", true, "invalid_call_id"},
+		{"sip:resident@fixture.test", "<sip:resident@fixture.test>", strings.Repeat("x", 257), true, "invalid_call_id"},
+	} {
+		m := message{first: "INVITE " + tc.target + " SIP/2.0", headers: map[string][]string{"to": {tc.to}, "call-id": {tc.id}}}
+		if got := inviteRejection(m, tc.registered, credential, "our.invalid"); got != tc.want {
+			t.Errorf("target=%q registered=%v got=%q want=%q", tc.target, tc.registered, got, tc.want)
+		}
 	}
 }

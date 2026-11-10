@@ -116,6 +116,12 @@ func (m *Manager) ConnectionReport() string {
 		}); ok {
 			r.Calls = p.CallStatus(s.Auth.Subject)
 		}
+		// Keep routine heartbeat/renewal churn out of diagnostic logs.
+		r.Calls.RegisteredAt = time.Time{}
+		r.Calls.Pongs = 0
+		if r.Calls.State == "registered" && r.Calls.SIPStatus == 401 {
+			r.Calls.SIPStatus = 200
+		}
 		reports = append(reports, r)
 	}
 	b, _ := json.Marshal(reports)

@@ -303,8 +303,10 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 				l.mu.Lock()
 				l.status.ReceivedInvites++
 				l.status.LastInviteAt = time.Now().UTC()
-				if !registered || id == "" || len(id) > 256 || Identity(message.one("to")) != credential.Username {
+				if reason := inviteRejection(message, registered, credential, reg.contact); reason != "" {
 					l.status.RejectedInvites++
+					l.status.LastRejectedAt = l.status.LastInviteAt
+					l.status.LastRejectedReason = reason
 					l.mu.Unlock()
 					continue
 				}
@@ -314,11 +316,16 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 						delete(l.events, key)
 					}
 				}
-				if len(l.events) < 128 {
-					if _, exists := l.events[id]; !exists {
-						l.events[id] = Event{ID: id, From: Identity(message.one("from")), At: time.Now().UTC()}
-						l.status.AcceptedInvites++
+				if _, exists := l.events[id]; !exists {
+					if len(l.events) >= 128 {
+						l.status.RejectedInvites++
+						l.status.LastRejectedAt = l.status.LastInviteAt
+						l.status.LastRejectedReason = "queue_full"
+						l.mu.Unlock()
+						continue
 					}
+					l.events[id] = Event{ID: id, From: Identity(message.one("from")), At: time.Now().UTC()}
+					l.status.AcceptedInvites++
 				}
 				l.mu.Unlock()
 				if err := write(message.response("100 Trying")); err != nil {
@@ -338,6 +345,53 @@ func (l *Listener) connect(ctx context.Context, credential Credential, endpoint 
 			}
 		}
 	}
+}
+
+func inviteRejection(m message, registered bool, c Credential, contact string) string {
+	if !registered {
+		return "not_registered"
+	}
+	if id := m.one("call-id"); id == "" || len(id) > 256 {
+		return "invalid_call_id"
+	}
+	// To is the original logical callee and may be a forwarded apartment alias.
+	// RFC 3261 section 8.2.2.1 routes to our Contact/AoR via Request-URI.
+	parts := strings.Fields(m.first)
+	if len(parts) != 3 {
+		return "invalid_request_uri"
+	}
+	user, host, ok := sipTarget(parts[1])
+	if !ok {
+		return "invalid_request_uri"
+	}
+	if user != c.Username {
+		return "recipient_user_mismatch"
+	}
+	for _, allowed := range []string{contact, c.Domain, c.Registrar} {
+		if allowed != "" && strings.EqualFold(host, allowed) {
+			return ""
+		}
+	}
+	return "recipient_host_mismatch"
+}
+
+func sipTarget(value string) (user, host string, ok bool) {
+	u, err := url.Parse(value)
+	if err != nil || (!strings.EqualFold(u.Scheme, "sip") && !strings.EqualFold(u.Scheme, "sips")) || u.Fragment != "" {
+		return "", "", false
+	}
+	user, host, ok = strings.Cut(u.Opaque, "@")
+	if !ok || user == "" || host == "" {
+		return "", "", false
+	}
+	// URI parameters and headers are not part of the destination host.
+	host, _, _ = strings.Cut(host, ";")
+	host, _, _ = strings.Cut(host, "?")
+	user, err = url.PathUnescape(user)
+	if err != nil || !safe(user) || !safe(host) {
+		return "", "", false
+	}
+	return user, host, true
 }
 
 type registration struct {
